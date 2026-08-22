@@ -25,6 +25,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             password: decodeURIComponent(url.password) || undefined,
             database: decodeURIComponent(url.pathname.substring(1)),
             ssl,
+            connectTimeout: 10000, // Increase connection timeout to 10 seconds (default is 1s)
+            acquireTimeout: 15000, // Increase acquire connection pool timeout to 15 seconds
         });
 
         // Khởi tạo PrismaClient bằng adapter

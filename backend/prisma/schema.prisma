@@ -20,6 +20,7 @@ enum JudgeStatus {
   MEMORY_LIMIT_EXCEEDED
   RUNTIME_ERROR
   COMPILATION_ERROR
+  CANCELLED
 }
 
 model User {

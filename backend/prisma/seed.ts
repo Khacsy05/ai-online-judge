@@ -20,6 +20,8 @@ const adapter = new PrismaMariaDb({
   password: decodeURIComponent(url.password) || undefined,
   database: decodeURIComponent(url.pathname.substring(1)),
   ssl,
+  connectTimeout: 10000,
+  acquireTimeout: 15000,
 });
 
 const prisma = new PrismaClient({ adapter });
