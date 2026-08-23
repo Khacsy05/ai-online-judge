@@ -6,12 +6,14 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { SubmissionsModule } from './modules/submissions/submissions.module';
 import { BullModule } from '@nestjs/bullmq';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
     PrismaModule,
     AssignmentsModule,
     SubmissionsModule,
+    AiModule,
     BullModule.forRoot({
       connection: {
         host: 'localhost',

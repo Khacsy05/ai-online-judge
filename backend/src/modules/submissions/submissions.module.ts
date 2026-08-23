@@ -4,10 +4,12 @@ import { SubmissionsController } from './submissions.controller';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { BullModule } from '@nestjs/bullmq';
 import { SubmissionsProcessor } from './submissions.processor';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
     PrismaModule,
+    AiModule,
     BullModule.registerQueue({
       name: 'judging',
     }),
