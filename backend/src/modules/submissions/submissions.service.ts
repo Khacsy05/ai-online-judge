@@ -1,9 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class SubmissionsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('judging') private readonly judgingQueue: Queue,
+  ) { }
 
   async create(file: Express.Multer.File, userId: string, assignmentId: string) {
     // 1. Detect file extension and map to programming language
@@ -80,7 +85,7 @@ export class SubmissionsService {
     });
 
     // 6. Store the submission in database with PENDING status
-    return this.prisma.submission.create({
+    const submission = await this.prisma.submission.create({
       data: {
         userId,
         assignmentId,
@@ -88,28 +93,16 @@ export class SubmissionsService {
         language,
         status: 'PENDING',
       },
-      include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            studentCode: true,
-          },
-        },
-        assignment: {
-          select: {
-            id: true,
-            problem: {
-              select: {
-                id: true,
-                title: true,
-              },
-            },
-          },
-        },
-      },
     });
+    await this.judgingQueue.add(
+      'gradeSubmission',
+      { submissionId: submission.id },
+      {
+        attempts: 3,
+        backoff: 5000,
+      }
+    );
+    return submission;
   }
 
   async findAll(userId?: string, assignmentId?: string) {
