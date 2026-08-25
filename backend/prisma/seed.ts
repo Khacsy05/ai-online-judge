@@ -1,6 +1,7 @@
 import { PrismaClient, Role, JudgeStatus, Classroom, User } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import 'dotenv/config';
+import * as bcrypt from 'bcryptjs';
 
 // Get DB connection config from environment
 const dbUrl = process.env.DATABASE_URL;
@@ -29,6 +30,10 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('🚀 Start seeding database...');
 
+  // Pre-hash passwords to match Auth/bcryptjs requirements
+  const adminPasswordHash = await bcrypt.hash('giangvien123', 10);
+  const studentPasswordHash = await bcrypt.hash('password123', 10);
+
   // 1. Clean up old data in reverse order of foreign key relationships
   console.log('🧹 Cleaning up old data...');
   await prisma.submissionDetail.deleteMany({});
@@ -46,7 +51,7 @@ async function main() {
   const lecturer = await prisma.user.create({
     data: {
       email: 'giangvien@gmail.com',
-      password: 'giangvien123', // plain text for now; update once Auth/hashing is implemented
+      password: adminPasswordHash,
       fullName: 'TS. Nguyễn Văn A',
       role: Role.ADMIN,
     },
@@ -84,13 +89,13 @@ async function main() {
   // 4. Create 60 Students (20 for each classroom)
   console.log('👥 Creating 60 students (20 per class) and joining classrooms...');
   const students: User[] = [];
-  
+
   for (let i = 1; i <= 60; i++) {
     const studentIdx = String(i).padStart(2, '0');
     const student = await prisma.user.create({
       data: {
         email: `student${studentIdx}@gmail.com`,
-        password: 'password123',
+        password: studentPasswordHash,
         fullName: `Sinh viên ${studentIdx}`,
         studentCode: `SV2024${String(i).padStart(4, '0')}`,
         role: Role.STUDENT,
@@ -113,7 +118,7 @@ async function main() {
 
   // 5. Create Problems and Test Cases
   console.log('📝 Creating problems with test cases...');
-  
+
   // Problem 1: Two Sum
   const p1 = await prisma.problem.create({
     data: {

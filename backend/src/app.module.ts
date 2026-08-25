@@ -7,6 +7,7 @@ import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { SubmissionsModule } from './modules/submissions/submissions.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AiModule } from './modules/ai/ai.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AiModule } from './modules/ai/ai.module';
     AssignmentsModule,
     SubmissionsModule,
     AiModule,
+    AuthModule,
     BullModule.forRoot({
       connection: {
         host: 'localhost',
