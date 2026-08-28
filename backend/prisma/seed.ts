@@ -28,7 +28,7 @@ const adapter = new PrismaMariaDb({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('🚀 Start seeding database...');
+  console.log('🚀 Start seeding database with rich data for Leaderboard testing...');
 
   // Pre-hash passwords to match Auth/bcryptjs requirements
   const adminPasswordHash = await bcrypt.hash('giangvien123', 10);
@@ -84,12 +84,11 @@ async function main() {
       },
     });
   }
-  console.log('✅ Classroom memberships for Lecturer registered.');
 
   // 4. Create 60 Students (20 for each classroom)
   console.log('👥 Creating 60 students (20 per class) and joining classrooms...');
   const students: User[] = [];
-
+  
   for (let i = 1; i <= 60; i++) {
     const studentIdx = String(i).padStart(2, '0');
     const student = await prisma.user.create({
@@ -116,9 +115,9 @@ async function main() {
   }
   console.log(`✅ 60 students created and assigned to respective classrooms.`);
 
-  // 5. Create Problems and Test Cases
-  console.log('📝 Creating problems with test cases...');
-
+  // 5. Create 8 Diverse Problems with Multiple Test Cases
+  console.log('📝 Creating 8 problems with rich test cases...');
+  
   // Problem 1: Two Sum
   const p1 = await prisma.problem.create({
     data: {
@@ -179,7 +178,7 @@ async function main() {
   // Problem 4: Palindrome
   const p4 = await prisma.problem.create({
     data: {
-      title: 'Kiểm tra chuỗi đối xứng',
+      title: 'Kiểm tra chuỗi đối xứng (Palindrome)',
       description: 'Cho một chuỗi ký tự S. Kiểm tra xem S có đối xứng (palindrome) hay không. In ra YES hoặc NO.',
       timeLimitMs: 1000,
       memoryLimitMb: 256,
@@ -195,228 +194,288 @@ async function main() {
     include: { testCases: true },
   });
 
-  console.log('✅ Problems and test cases created successfully.');
+  // Problem 5: Find Second Largest
+  const p5 = await prisma.problem.create({
+    data: {
+      title: 'Tìm phần tử lớn thứ hai trong mảng',
+      description: 'Cho mảng N số nguyên. Hãy tìm và in ra giá trị lớn thứ hai trong mảng. Nếu không tồn tại, in ra -1.',
+      timeLimitMs: 1000,
+      memoryLimitMb: 256,
+      authorId: lecturer.id,
+      testCases: {
+        create: [
+          { input: '5\n1 2 3 4 5', expectedOutput: '4', isHidden: false, score: 3.0 },
+          { input: '4\n10 10 10 10', expectedOutput: '-1', isHidden: false, score: 3.0 },
+          { input: '6\n5 8 12 3 12 9', expectedOutput: '9', isHidden: true, score: 4.0 },
+        ],
+      },
+    },
+    include: { testCases: true },
+  });
 
-  // 6. Create Assignments with different times
-  console.log('📅 Creating assignments with varying schedules...');
+  // Problem 6: Reverse Array
+  const p6 = await prisma.problem.create({
+    data: {
+      title: 'Đảo ngược mảng số nguyên',
+      description: 'Cho mảng gồm N số nguyên. Hãy in ra các phần tử của mảng theo thứ tự đảo ngược.',
+      timeLimitMs: 1000,
+      memoryLimitMb: 256,
+      authorId: lecturer.id,
+      testCases: {
+        create: [
+          { input: '4\n1 2 3 4', expectedOutput: '4 3 2 1', isHidden: false, score: 5.0 },
+          { input: '5\n10 20 30 40 50', expectedOutput: '50 40 30 20 10', isHidden: true, score: 5.0 },
+        ],
+      },
+    },
+    include: { testCases: true },
+  });
+
+  // Problem 7: Factorial
+  const p7 = await prisma.problem.create({
+    data: {
+      title: 'Tính giai thừa N!',
+      description: 'Cho số nguyên dương N (1 <= N <= 15). Hãy tính và in ra giá trị N! = 1 * 2 * ... * N.',
+      timeLimitMs: 1000,
+      memoryLimitMb: 256,
+      authorId: lecturer.id,
+      testCases: {
+        create: [
+          { input: '5', expectedOutput: '120', isHidden: false, score: 4.0 },
+          { input: '7', expectedOutput: '5040', isHidden: false, score: 3.0 },
+          { input: '12', expectedOutput: '479001600', isHidden: true, score: 3.0 },
+        ],
+      },
+    },
+    include: { testCases: true },
+  });
+
+  // Problem 8: Count Character Occurrences
+  const p8 = await prisma.problem.create({
+    data: {
+      title: 'Đếm số lần xuất hiện của ký tự',
+      description: 'Cho một chuỗi S và một ký tự C. Hãy đếm và in ra số lần ký tự C xuất hiện trong chuỗi S.',
+      timeLimitMs: 1000,
+      memoryLimitMb: 256,
+      authorId: lecturer.id,
+      testCases: {
+        create: [
+          { input: 'helloworld l', expectedOutput: '3', isHidden: false, score: 5.0 },
+          { input: 'programming g', expectedOutput: '2', isHidden: true, score: 5.0 },
+        ],
+      },
+    },
+    include: { testCases: true },
+  });
+
+  console.log('✅ 8 Problems created successfully.');
+
+  // 6. Create Assignments for all classrooms
+  console.log('📅 Assigning problems to classrooms...');
   const now = new Date();
 
-  // Classroom 1 (64CNTT_VA): Two Active/Ongoing Assignments
-  const assign1 = await prisma.assignment.create({
+  // Classroom 1 (64CNTT_VA): Assigned Problems 1, 2, 3, 5
+  const c1_a1 = await prisma.assignment.create({
     data: {
       classroomId: classrooms[0].id,
       problemId: p1.id,
-      startTime: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000), // Started 3 days ago
-      deadline: new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),  // Deadline in 4 days
+      startTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000),
       isPublished: true,
     },
   });
 
-  const assign2 = await prisma.assignment.create({
+  const c1_a2 = await prisma.assignment.create({
     data: {
       classroomId: classrooms[0].id,
       problemId: p2.id,
-      startTime: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), // Started 2 days ago
-      deadline: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000),  // Deadline in 5 days
+      startTime: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),
       isPublished: true,
     },
   });
 
-  // Classroom 2 (64CNTT_CLC): Two Ended/Past Assignments
-  const assign3 = await prisma.assignment.create({
+  const c1_a3 = await prisma.assignment.create({
+    data: {
+      classroomId: classrooms[0].id,
+      problemId: p3.id,
+      startTime: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+      isPublished: true,
+    },
+  });
+
+  const c1_a4 = await prisma.assignment.create({
+    data: {
+      classroomId: classrooms[0].id,
+      problemId: p5.id,
+      startTime: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000),
+      isPublished: true,
+    },
+  });
+
+  // Classroom 2 (64CNTT_CLC): Assigned Problems 2, 3, 4, 6
+  const c2_a1 = await prisma.assignment.create({
     data: {
       classroomId: classrooms[1].id,
       problemId: p2.id,
-      startTime: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000), // Started 10 days ago
-      deadline: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),   // Ended 3 days ago
+      startTime: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
       isPublished: true,
     },
   });
 
-  const assign4 = await prisma.assignment.create({
+  const c2_a2 = await prisma.assignment.create({
     data: {
       classroomId: classrooms[1].id,
       problemId: p3.id,
-      startTime: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),  // Started 7 days ago
-      deadline: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),   // Ended 1 day ago
+      startTime: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
       isPublished: true,
     },
   });
 
-  // Classroom 3 (64CNTT_1): One active, One Scheduled/Future Assignment
-  const assign5 = await prisma.assignment.create({
+  const c2_a3 = await prisma.assignment.create({
     data: {
-      classroomId: classrooms[2].id,
-      problemId: p3.id,
-      startTime: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),  // Started 1 day ago
-      deadline: new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000),   // Deadline in 6 days
-      isPublished: true,
-    },
-  });
-
-  const assign6 = await prisma.assignment.create({
-    data: {
-      classroomId: classrooms[2].id,
+      classroomId: classrooms[1].id,
       problemId: p4.id,
-      startTime: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000),  // Starts in 1 day
-      deadline: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),   // Ends in 7 days
+      startTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),
+      isPublished: true,
+    },
+  });
+
+  // Classroom 3 (64CNTT_1): Assigned Problems 1, 4, 7, 8
+  const c3_a1 = await prisma.assignment.create({
+    data: {
+      classroomId: classrooms[2].id,
+      problemId: p1.id,
+      startTime: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+      isPublished: true,
+    },
+  });
+
+  const c3_a2 = await prisma.assignment.create({
+    data: {
+      classroomId: classrooms[2].id,
+      problemId: p7.id,
+      startTime: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
+      deadline: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000),
       isPublished: true,
     },
   });
 
   console.log('✅ Assignments registered.');
 
-  // 7. Create Submissions (mocking some completed/successful ones and some failures)
-  console.log('💻 Mocking user submissions...');
+  // 7. Create Submissions (Varying scores to test Classroom Leaderboards)
+  console.log('💻 Generating realistic student submissions for Classroom 1 Leaderboard...');
 
-  // Classroom 1 - Student 01 submits to Two Sum -> ACCEPTED (Score: 10/10)
-  const sub1 = await prisma.submission.create({
-    data: {
-      userId: students[0].id,
-      assignmentId: assign1.id,
-      sourceCode: '#include <iostream>\nusing namespace std;\nint main() {\n    long long a, b;\n    if (cin >> a >> b) {\n        cout << a + b << endl;\n    }\n    return 0;\n}',
-      language: 'cpp',
-      status: JudgeStatus.ACCEPTED,
-      totalScore: 10.0,
-      executionTimeMs: 42,
-      memoryUsedKb: 2048,
-    },
-  });
-
-  for (const tc of p1.testCases) {
-    await prisma.submissionDetail.create({
+  // Helper to create submissions and details easily
+  const createSub = async (
+    user: User,
+    assignment: any,
+    problem: any,
+    status: JudgeStatus,
+    score: number,
+    lang = 'cpp'
+  ) => {
+    const sub = await prisma.submission.create({
       data: {
-        submissionId: sub1.id,
-        testCaseId: tc.id,
-        status: JudgeStatus.ACCEPTED,
-        actualOutput: tc.expectedOutput,
-        executionTimeMs: 14,
+        userId: user.id,
+        assignmentId: assignment.id,
+        sourceCode: `// Code solution submitted by ${user.fullName}\n// Language: ${lang}`,
+        language: lang,
+        status: status,
+        totalScore: score,
+        executionTimeMs: Math.floor(Math.random() * 80) + 20,
+        memoryUsedKb: 2048 + Math.floor(Math.random() * 2048),
       },
     });
-  }
 
-  // Classroom 1 - Student 02 submits to Two Sum -> WRONG_ANSWER (Score: 6/10 - fails hidden case)
-  const sub2 = await prisma.submission.create({
-    data: {
-      userId: students[1].id,
-      assignmentId: assign1.id,
-      sourceCode: 'a, b = map(int, input().split())\nprint(a + b if a < 1000000 else 0)',
-      language: 'python',
-      status: JudgeStatus.WRONG_ANSWER,
-      totalScore: 6.0,
-      executionTimeMs: 85,
-      memoryUsedKb: 4096,
-    },
-  });
+    for (const tc of problem.testCases) {
+      await prisma.submissionDetail.create({
+        data: {
+          submissionId: sub.id,
+          testCaseId: tc.id,
+          status: status === JudgeStatus.ACCEPTED ? JudgeStatus.ACCEPTED : (Math.random() > 0.5 ? JudgeStatus.ACCEPTED : JudgeStatus.WRONG_ANSWER),
+          actualOutput: status === JudgeStatus.ACCEPTED ? tc.expectedOutput : 'wrong_output',
+          executionTimeMs: Math.floor(Math.random() * 20) + 5,
+        },
+      });
+    }
+    return sub;
+  };
 
-  await prisma.submissionDetail.create({
-    data: {
-      submissionId: sub2.id,
-      testCaseId: p1.testCases[0].id,
-      status: JudgeStatus.ACCEPTED,
-      actualOutput: p1.testCases[0].expectedOutput,
-      executionTimeMs: 25,
-    },
-  });
-  await prisma.submissionDetail.create({
-    data: {
-      submissionId: sub2.id,
-      testCaseId: p1.testCases[1].id,
-      status: JudgeStatus.ACCEPTED,
-      actualOutput: p1.testCases[1].expectedOutput,
-      executionTimeMs: 28,
-    },
-  });
-  await prisma.submissionDetail.create({
-    data: {
-      submissionId: sub2.id,
-      testCaseId: p1.testCases[2].id, // Hidden test case
-      status: JudgeStatus.WRONG_ANSWER,
-      actualOutput: '0',
-      errorMessage: 'Expected 3000000, got 0',
-      executionTimeMs: 32,
-    },
-  });
+  // Student 01 (SV20240001): Super student! Solved all 4 assignments with 10.0 -> Total: 40.0 (Rank 1)
+  await createSub(students[0], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[0], c1_a2, p2, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[0], c1_a3, p3, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[0], c1_a4, p5, JudgeStatus.ACCEPTED, 10.0);
 
-  // Classroom 1 - Student 03 submits to Two Sum -> ACCEPTED (Score: 10/10)
-  const sub3 = await prisma.submission.create({
-    data: {
-      userId: students[2].id,
-      assignmentId: assign1.id,
-      sourceCode: 'import sys\na, b = map(int, sys.stdin.read().split())\nprint(a + b)',
-      language: 'python',
-      status: JudgeStatus.ACCEPTED,
-      totalScore: 10.0,
-      executionTimeMs: 70,
-      memoryUsedKb: 4112,
-    },
-  });
+  // Student 02 (SV20240002): Solved 3 assignments (10, 10, 10), 1 partial (7.0) -> Total: 37.0 (Rank 2)
+  await createSub(students[1], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[1], c1_a2, p2, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[1], c1_a3, p3, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[1], c1_a4, p5, JudgeStatus.WRONG_ANSWER, 7.0);
 
-  for (const tc of p1.testCases) {
-    await prisma.submissionDetail.create({
-      data: {
-        submissionId: sub3.id,
-        testCaseId: tc.id,
-        status: JudgeStatus.ACCEPTED,
-        actualOutput: tc.expectedOutput,
-        executionTimeMs: 23,
-      },
-    });
-  }
+  // Student 03 (SV20240003): Solved 3 assignments with 10.0 -> Total: 30.0 (Rank 3)
+  await createSub(students[2], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[2], c1_a2, p2, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[2], c1_a3, p3, JudgeStatus.ACCEPTED, 10.0);
 
-  // Classroom 1 - Student 01 submits to Prime Check -> ACCEPTED (Score: 10/10)
-  const sub4 = await prisma.submission.create({
-    data: {
-      userId: students[0].id,
-      assignmentId: assign2.id,
-      sourceCode: '#include <iostream>\nusing namespace std;\nbool isPrime(int n) {\n    if (n < 2) return false;\n    for (int i = 2; i * i <= n; i++) {\n        if (n % i == 0) return false;\n    }\n    return true;\n}\nint main() {\n    int n;\n    if (cin >> n) {\n        cout << (isPrime(n) ? "YES" : "NO") << endl;\n    }\n    return 0;\n}',
-      language: 'cpp',
-      status: JudgeStatus.ACCEPTED,
-      totalScore: 10.0,
-      executionTimeMs: 35,
-      memoryUsedKb: 2048,
-    },
-  });
+  // Student 04 (SV20240004): Multiple attempts on A1 (First attempt: 6.0, Second attempt: 10.0), A2: 10.0, A3: 8.0 -> Total: 28.0 (Rank 4)
+  await createSub(students[3], c1_a1, p1, JudgeStatus.WRONG_ANSWER, 6.0); // Attempt 1
+  await createSub(students[3], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);    // Attempt 2 (Higher!)
+  await createSub(students[3], c1_a2, p2, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[3], c1_a3, p3, JudgeStatus.WRONG_ANSWER, 8.0);
 
-  for (const tc of p2.testCases) {
-    await prisma.submissionDetail.create({
-      data: {
-        submissionId: sub4.id,
-        testCaseId: tc.id,
-        status: JudgeStatus.ACCEPTED,
-        actualOutput: tc.expectedOutput,
-        executionTimeMs: 11,
-      },
-    });
-  }
+  // Student 05 (SV20240005): Solved A1: 10.0, A2: 10.0, A4: 5.0 -> Total: 25.0 (Rank 5)
+  await createSub(students[4], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[4], c1_a2, p2, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[4], c1_a4, p5, JudgeStatus.WRONG_ANSWER, 5.0);
 
-  // Classroom 2 - Student 21 submits to Prime Check -> ACCEPTED (Score: 10/10)
-  const sub5 = await prisma.submission.create({
-    data: {
-      userId: students[20].id,
-      assignmentId: assign3.id,
-      sourceCode: '#include <iostream>\nusing namespace std;\nbool isPrime(int n) {\n    if (n < 2) return false;\n    for (int i = 2; i * i <= n; i++) {\n        if (n % i == 0) return false;\n    }\n    return true;\n}\nint main() {\n    int n;\n    if (cin >> n) {\n        cout << (isPrime(n) ? "YES" : "NO") << endl;\n    }\n    return 0;\n}',
-      language: 'cpp',
-      status: JudgeStatus.ACCEPTED,
-      totalScore: 10.0,
-      executionTimeMs: 38,
-      memoryUsedKb: 2048,
-    },
-  });
+  // Student 06 (SV20240006): Solved A1: 10.0, A2: 10.0 -> Total: 20.0, Solved: 2 (Rank 6)
+  await createSub(students[5], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[5], c1_a2, p2, JudgeStatus.ACCEPTED, 10.0);
 
-  for (const tc of p2.testCases) {
-    await prisma.submissionDetail.create({
-      data: {
-        submissionId: sub5.id,
-        testCaseId: tc.id,
-        status: JudgeStatus.ACCEPTED,
-        actualOutput: tc.expectedOutput,
-        executionTimeMs: 12,
-      },
-    });
-  }
+  // Student 07 (SV20240007): Solved A1: 10.0, A3: 6.0, A4: 4.0 -> Total: 20.0, Solved: 1 (Rank 7 - tie-breaker by solved count)
+  await createSub(students[6], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[6], c1_a3, p3, JudgeStatus.WRONG_ANSWER, 6.0);
+  await createSub(students[6], c1_a4, p5, JudgeStatus.WRONG_ANSWER, 4.0);
 
-  console.log('✅ Submissions simulated successfully.');
+  // Student 08 (SV20240008): Solved A1: 10.0, A2: 7.0 -> Total: 17.0 (Rank 8)
+  await createSub(students[7], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[7], c1_a2, p2, JudgeStatus.WRONG_ANSWER, 7.0);
+
+  // Student 09 (SV20240009): Solved A1: 10.0, A3: 5.0 -> Total: 15.0 (Rank 9)
+  await createSub(students[8], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[8], c1_a3, p3, JudgeStatus.WRONG_ANSWER, 5.0);
+
+  // Student 10 (SV20240010): Solved A1: 10.0 -> Total: 10.0 (Rank 10)
+  await createSub(students[9], c1_a1, p1, JudgeStatus.ACCEPTED, 10.0);
+
+  // Student 11 (SV20240011): A1: 6.0 -> Total: 6.0 (Rank 11)
+  await createSub(students[10], c1_a1, p1, JudgeStatus.WRONG_ANSWER, 6.0);
+
+  // Student 12 (SV20240012): A1: Compile Error -> Total: 0.0 (Rank 12)
+  await createSub(students[11], c1_a1, p1, JudgeStatus.COMPILATION_ERROR, 0.0);
+
+  // Students 13-20: Haven't submitted anything yet -> Total: 0.0
+
+  // Mock submissions for Classroom 2 (64CNTT_CLC)
+  console.log('💻 Generating mock submissions for Classroom 2...');
+  await createSub(students[20], c2_a1, p2, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[20], c2_a2, p3, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[20], c2_a3, p4, JudgeStatus.ACCEPTED, 10.0);
+
+  await createSub(students[21], c2_a1, p2, JudgeStatus.ACCEPTED, 10.0);
+  await createSub(students[21], c2_a2, p3, JudgeStatus.WRONG_ANSWER, 7.0);
+
+  await createSub(students[22], c2_a1, p2, JudgeStatus.ACCEPTED, 10.0);
+
+  console.log('✅ Submissions generated successfully with realistic rankings.');
   console.log('🎉 Database seeding completed!');
 }
 
