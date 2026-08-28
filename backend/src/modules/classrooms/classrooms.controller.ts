@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { ClassroomsService } from './classrooms.service';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 @Controller('classrooms')
 export class ClassroomsController {
@@ -19,16 +20,22 @@ export class ClassroomsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.classroomsService.findOne(+id);
+    return this.classroomsService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateClassroomDto: UpdateClassroomDto) {
-    return this.classroomsService.update(+id, updateClassroomDto);
+    return this.classroomsService.update(id, updateClassroomDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.classroomsService.remove(+id);
+    return this.classroomsService.remove(id);
+  }
+
+  @Get(':id/leaderboard')
+  @UseGuards(JwtAuthGuard)
+  getLeaderboard(@Param('id') id: string) {
+    return this.classroomsService.getClassroomLeaderboard(id);
   }
 }
