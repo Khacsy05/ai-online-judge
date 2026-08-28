@@ -10,10 +10,11 @@ export class SubmissionsService {
     @InjectQueue('judging') private readonly judgingQueue: Queue,
   ) { }
 
-  async create(file: Express.Multer.File, userId: string, assignmentId: string) {
+  async create(file: Express.Multer.File, assignmentId: string, req: any) {
     // 1. Detect file extension and map to programming language
     const filename = file.originalname;
     const parts = filename.split('.');
+    const userId = req.user.id as any;
     if (parts.length < 2) {
       throw new BadRequestException('Tên file không hợp lệ (thiếu phần mở rộng).');
     }

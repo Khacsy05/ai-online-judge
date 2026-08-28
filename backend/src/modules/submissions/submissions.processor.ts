@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { JudgeStatus } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { Submission, TestCase } from '@prisma/client';
+import { SubmissionsGateway } from './submissions.gateway';
 
 interface ProblemTestCase extends TestCase {
     _count: { submissions: number };
@@ -63,6 +64,7 @@ export class SubmissionsProcessor extends WorkerHost {
     constructor(
         private readonly prisma: PrismaService,
         private readonly aiService: AiService,
+        private readonly submissionsGateway: SubmissionsGateway,
     ) { super(); }
 
     // Hàm này tự động chạy khi có job mới được lấy ra từ hàng đợi Redis
@@ -133,6 +135,8 @@ export class SubmissionsProcessor extends WorkerHost {
                 },
             });
 
+
+
             // 3. Tạo chi tiết kết quả chạy cho từng testcase
             if (result.testCaseResults && result.testCaseResults.length > 0) {
                 const detailsData = result.testCaseResults.map(tcResult => ({
@@ -148,6 +152,15 @@ export class SubmissionsProcessor extends WorkerHost {
                     data: detailsData,
                 });
             }
+
+            this.submissionsGateway.sendGradingResult(submission.userId, {
+                submissionId,
+                status: result.status,
+                totalScore: result.totalScore,
+                executionTimeMs: result.executionTimeMs || 0,
+                memoryUsedKb: result.memoryUsedKb || 0,
+                feedback: result.feedback,
+            });
 
             console.log(`✅ Chấm bài hoàn tất cho Submission ID: ${submissionId}`);
         } catch (error) {

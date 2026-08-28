@@ -18,7 +18,9 @@ export class SubmissionsGateway implements OnGatewayConnection, OnGatewayDisconn
     // Tự động kích hoạt và xử lý khi có client kết nối
     handleConnection(client: Socket) {
         // 1. Lấy userId từ dữ liệu auth gửi kèm khi bắt tay
-        const userId = client.handshake.auth.userId;
+        // Lấy userId từ auth (cho Web) HOẶC từ query (cho Postman)
+        const userId = client.handshake.auth.userId || client.handshake.query.userId;
+
 
         if (userId) {
             // 2. Cho client vào phòng riêng user_userId tương ứng luôn
