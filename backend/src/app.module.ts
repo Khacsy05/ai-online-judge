@@ -8,6 +8,7 @@ import { SubmissionsModule } from './modules/submissions/submissions.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ClassroomsModule } from './modules/classrooms/classrooms.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from './modules/auth/auth.module';
         port: 6379,
       },
     }),
+    ClassroomsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

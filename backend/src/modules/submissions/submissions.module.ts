@@ -5,6 +5,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { BullModule } from '@nestjs/bullmq';
 import { SubmissionsProcessor } from './submissions.processor';
 import { AiModule } from '../ai/ai.module';
+import { SubmissionsGateway } from './submissions.gateway';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { AiModule } from '../ai/ai.module';
     }),
   ],
   controllers: [SubmissionsController],
-  providers: [SubmissionsService, SubmissionsProcessor],
-  exports: [SubmissionsService],
+  providers: [SubmissionsService, SubmissionsProcessor, SubmissionsGateway],
+  exports: [SubmissionsService, SubmissionsGateway],
 })
 export class SubmissionsModule { }
