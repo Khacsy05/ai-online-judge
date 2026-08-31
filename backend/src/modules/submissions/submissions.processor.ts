@@ -153,13 +153,70 @@ export class SubmissionsProcessor extends WorkerHost {
                 });
             }
 
+            // 4. Tính toán điểm tổng tiến độ của sinh viên trong lớp học (Động theo số bài được giao)
+            const classroomId = submission.assignment.classroomId;
+            const classAssignments = await this.prisma.assignment.findMany({
+                where: { classroomId },
+                select: { id: true },
+            });
+
+            const totalAssignments = classAssignments.length;
+            const maxClassScore = totalAssignments * 10; // Mỗi bài tối đa 10 điểm
+            const classAssignmentIds = classAssignments.map(a => a.id);
+
+            // Lấy tất cả bài nộp của sinh viên này cho các bài tập trong lớp
+            const studentClassSubmissions = await this.prisma.submission.findMany({
+                where: {
+                    userId: submission.userId,
+                    assignmentId: { in: classAssignmentIds },
+                    status: { not: JudgeStatus.CANCELLED },
+                },
+                select: {
+                    assignmentId: true,
+                    totalScore: true,
+                    status: true,
+                },
+            });
+
+            const maxScorePerAssignment: Record<string, number> = {};
+            const solvedAssignmentsSet = new Set<string>();
+
+            for (const sub of studentClassSubmissions) {
+                const current = maxScorePerAssignment[sub.assignmentId] || 0;
+                if (sub.totalScore > current) {
+                    maxScorePerAssignment[sub.assignmentId] = sub.totalScore;
+                }
+                if (sub.status === JudgeStatus.ACCEPTED) {
+                    solvedAssignmentsSet.add(sub.assignmentId);
+                }
+            }
+
+            let studentTotalScore = 0;
+            for (const aId of classAssignmentIds) {
+                studentTotalScore += maxScorePerAssignment[aId] || 0;
+            }
+
+            const solvedCount = solvedAssignmentsSet.size;
+            const progressPercentage = maxClassScore > 0
+                ? Math.round((studentTotalScore / maxClassScore) * 10000) / 100
+                : 0;
+
+            // 5. Bắn tín hiệu Socket.io thời gian thực về thiết bị của sinh viên
             this.submissionsGateway.sendGradingResult(submission.userId, {
                 submissionId,
+                assignmentId: submission.assignmentId,
+                classroomId,
                 status: result.status,
                 totalScore: result.totalScore,
                 executionTimeMs: result.executionTimeMs || 0,
                 memoryUsedKb: result.memoryUsedKb || 0,
                 feedback: result.feedback,
+                // Dữ liệu tiến độ lớp học động:
+                studentTotalScore: Math.round(studentTotalScore * 100) / 100,
+                maxClassScore,
+                totalAssignments,
+                solvedCount,
+                progressPercentage,
             });
 
             console.log(`✅ Chấm bài hoàn tất cho Submission ID: ${submissionId}`);
