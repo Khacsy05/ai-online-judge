@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
 import { ClassroomsService } from './classrooms.service';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
@@ -37,5 +37,11 @@ export class ClassroomsController {
   @UseGuards(JwtAuthGuard)
   getLeaderboard(@Param('id') id: string) {
     return this.classroomsService.getClassroomLeaderboard(id);
+  }
+
+  @Get(':id/my-progress')
+  @UseGuards(JwtAuthGuard)
+  getMyProgress(@Param('id') id: string, @Req() req: any) {
+    return this.classroomsService.getMyClassroomProgress(id, req.user.id);
   }
 }
