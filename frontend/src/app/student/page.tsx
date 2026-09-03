@@ -15,9 +15,8 @@ import {
 import { Assignment, ClassroomProgress } from "@/types";
 import { DetailModal } from "@/components/detail-modal";
 import { SubmitModal } from "@/components/submit-modal";
-import { getClassList, getMyProgress } from "@/services";
 import { useAuthStore } from "@/store/useAuthStore";
-
+import { useStudentStore } from "@/store/useStudentStore";
 
 const statusDisplayMap: Record<
   string,
@@ -35,17 +34,21 @@ const statusDisplayMap: Record<
     text: "Quá thời gian",
     style: "bg-amber-50 text-amber-700 ring-amber-200 border-amber-200",
   },
+  MEMORY_LIMIT_EXCEEDED: {
+    text: "Tràn bộ nhớ",
+    style: "bg-amber-50 text-amber-700 ring-amber-200 border-amber-200",
+  },
   RUNTIME_ERROR: {
-    text: "Lỗi chạy (RTE)",
-    style: "bg-purple-50 text-purple-700 ring-purple-200 border-purple-200",
+    text: "Lỗi thực thi",
+    style: "bg-rose-50 text-rose-700 ring-rose-200 border-rose-200",
   },
   COMPILATION_ERROR: {
     text: "Lỗi biên dịch",
-    style: "bg-cyan-50 text-cyan-700 ring-cyan-200 border-cyan-200",
+    style: "bg-rose-50 text-rose-700 ring-rose-200 border-rose-200",
   },
   PENDING: {
-    text: "Đang chấm",
-    style: "bg-sky-50 text-sky-700 ring-sky-200 border-sky-200 animate-pulse",
+    text: "Đang chờ chấm",
+    style: "bg-slate-100 text-slate-700 ring-slate-200 border-slate-200",
   },
   RUNNING: {
     text: "Đang chấm",
@@ -58,62 +61,17 @@ const statusDisplayMap: Record<
 };
 
 export default function StudentDashboard() {
-  const [data, setData] = useState<ClassroomProgress | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { progress: data, loading, error, fetchProgress } = useStudentStore();
 
   const [selected, setSelected] = useState<Assignment | null>(null);
   const [submitFor, setSubmitFor] = useState<Assignment | null>(null);
   const [query, setQuery] = useState("");
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Tải dữ liệu từ Backend
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // 1. Kiểm tra Token đăng nhập (Tự động login mẫu nếu chưa có)
-
-
-      // 1. Lấy mã lớp học trực tiếp từ useAuthStore (do Token / Login trả về)
-      let targetClassroomId =
-        useAuthStore.getState().classroomId ||
-        useAuthStore.getState().user?.classroomId;
-
-      // Nếu chưa có trong Store, fallback tìm qua danh sách lớp học
-      if (!targetClassroomId) {
-        const classrooms = await getClassList();
-        if (!classrooms || classrooms.length === 0) {
-          throw new Error("Chưa có lớp học nào trong hệ thống.");
-        }
-        for (const cl of classrooms) {
-          try {
-            const progress = await getMyProgress(cl.id);
-            setData(progress);
-            setLoading(false);
-            return;
-          } catch (e) {
-            continue;
-          }
-        }
-        throw new Error("Tài khoản này hiện chưa được xếp vào lớp học nào.");
-      }
-
-      // 2. Gọi thẳng API lấy tiến độ của đúng lớp học (0 vòng lặp, 0 lỗi 403)
-      const progress = await getMyProgress(targetClassroomId);
-      setData(progress);
-      setLoading(false);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Không thể kết nối đến máy chủ.");
-      setLoading(false);
-    }
-  };
+  const currentUser = useAuthStore((state) => state.user);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchProgress();
+  }, [fetchProgress]);
 
   const assignments = data?.assignments || [];
 
@@ -149,7 +107,7 @@ export default function StudentDashboard() {
           <h3 className="font-bold text-base">Không thể tải dữ liệu bài tập</h3>
           <p className="mt-1 text-xs text-rose-600">{error}</p>
           <button
-            onClick={loadData}
+            onClick={() => fetchProgress(true)}
             className="mt-4 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 cursor-pointer"
           >
             Thử lại
@@ -178,7 +136,7 @@ export default function StudentDashboard() {
           </span>
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-          Xin chào, {currentUser?.fullName || "Sinh viên 01"}
+          Xin chào, {currentUser?.fullname || "Sinh viên 01"}
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">
           Đây là toàn bộ bài tập và tiến độ điểm số được cập nhật trực tiếp từ hệ thống chấm điểm AI.
@@ -366,7 +324,7 @@ export default function StudentDashboard() {
           onClose={() => setSubmitFor(null)}
           onSuccess={() => {
             // Khi nộp bài thành công, tự động load lại tiến độ để cập nhật điểm mới nhất
-            loadData();
+            fetchProgress(true);
           }}
         />
       )}
