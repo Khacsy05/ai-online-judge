@@ -1,12 +1,34 @@
+export type TestCase = {
+  id?: string;
+  input: string;
+  expectedOutput: string;
+};
+
 export type Assignment = {
-  id: number | string;
-  title: string;
-  code: string;
-  due: string;
-  difficulty: "Dễ" | "Trung bình" | "Khó";
-  status: "Chưa nộp" | "Đã nộp" | "Đang chấm";
-  score?: number;
-  description: string;
-  requirements: string[];
-  tests: { input: string; output: string }[];
+  assignmentId: string;
+  problemId: string;
+  problemTitle: string;
+  problemDescription?: string;
+  timeLimitMs?: number;
+  memoryLimitMb?: number;
+  testCases?: TestCase[];
+  startTime: string;
+  deadline: string;
+  attemptCount: number;
+  bestScore: number;
+  maxPossibleScore: number;
+  isSolved: boolean;
+  latestStatus: string; // 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'COMPILATION_ERROR' | 'PENDING' | 'RUNNING' | 'NOT_SUBMITTED'
+};
+
+export type ClassroomProgress = {
+  classroomId: string;
+  classroomCode: string;
+  classroomName: string;
+  studentTotalScore: number;
+  maxClassScore: number;
+  totalAssignments: number;
+  solvedCount: number;
+  progressPercentage: number;
+  assignments: Assignment[];
 };

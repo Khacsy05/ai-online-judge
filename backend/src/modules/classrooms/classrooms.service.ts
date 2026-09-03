@@ -6,7 +6,7 @@ import { Role, JudgeStatus } from '@prisma/client';
 
 @Injectable()
 export class ClassroomsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   create(createClassroomDto: CreateClassroomDto) {
     return 'This action adds a new classroom';
@@ -107,7 +107,7 @@ export class ClassroomsService {
     const leaderboard = members.map(member => {
       const student = member.user;
       const scores = studentScoresMap[student.id] || {};
-      
+
       let totalScore = 0;
       assignments.forEach(assign => {
         totalScore += scores[assign.id] || 0;
@@ -168,6 +168,17 @@ export class ClassroomsService {
               select: {
                 id: true,
                 title: true,
+                description: true,
+                timeLimitMs: true,
+                memoryLimitMb: true,
+                testCases: {
+                  where: { isHidden: false },
+                  select: {
+                    id: true,
+                    input: true,
+                    expectedOutput: true,
+                  },
+                },
               },
             },
           },
@@ -233,6 +244,10 @@ export class ClassroomsService {
         assignmentId: assign.id,
         problemId: assign.problemId,
         problemTitle: assign.problem.title,
+        problemDescription: assign.problem.description,
+        timeLimitMs: assign.problem.timeLimitMs,
+        memoryLimitMb: assign.problem.memoryLimitMb,
+        testCases: assign.problem.testCases,
         startTime: assign.startTime,
         deadline: assign.deadline,
         attemptCount,

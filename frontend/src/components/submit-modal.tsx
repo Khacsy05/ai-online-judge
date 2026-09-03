@@ -1,24 +1,28 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { X, Send, CheckCircle2, UploadCloud, FileCode2, Trash2 } from "lucide-react";
+import { X, Send, CheckCircle2, UploadCloud, FileCode2, Trash2, AlertCircle } from "lucide-react";
 import { Assignment } from "@/types";
+
 
 interface SubmitModalProps {
   assignment: Assignment;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
+export function SubmitModal({ assignment, onClose, onSuccess }: SubmitModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
+      setErrorMsg(null);
     }
   };
 
@@ -27,6 +31,7 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setSelectedFile(e.dataTransfer.files[0]);
+      setErrorMsg(null);
     }
   };
 
@@ -46,32 +51,40 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedFile) return;
 
     setIsSubmitting(true);
-    // Giả lập gửi bài
-    setTimeout(() => {
+    setErrorMsg(null);
+
+    try {
+
       setIsSubmitting(false);
       setSent(true);
-    }, 600);
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMsg(err.message || "Gửi bài chấm thất bại. Vui lòng thử lại.");
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs animate-in fade-in duration-150">
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-xl rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="w-full max-w-xl rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200"
       >
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-100 p-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-              Nộp bài
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900">
-              {assignment.title}
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+              Nộp bài giải
+            </span>
+            <h2 className="mt-2 text-xl font-bold text-slate-900">
+              {assignment.problemTitle}
             </h2>
           </div>
           <button
@@ -91,23 +104,30 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
               Đã gửi file bài làm thành công!
             </h3>
             <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto">
-              File <span className="font-semibold text-slate-700">{selectedFile?.name}</span> đã được chuyển đến AI để chấm điểm tự động.
+              File <span className="font-semibold text-slate-700">{selectedFile?.name}</span> đã được chuyển vào hàng đợi chấm. Kết quả chấm AI sẽ tự động cập nhật.
             </p>
             <button
               onClick={onClose}
-              className="mt-6 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer"
+              className="mt-6 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer shadow-sm shadow-blue-200"
             >
               Hoàn tất
             </button>
           </div>
         ) : (
           <div className="space-y-5 p-6">
+            {errorMsg && (
+              <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-3.5 text-xs text-rose-600 border border-rose-100">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             {/* Ẩn input file gốc */}
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept=".py,.cpp,.c,.java,.js,.ts,.txt,.pas"
+              accept=".py,.cpp,.c,.java,.js,.ts"
               className="hidden"
             />
 
@@ -118,11 +138,10 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all cursor-pointer ${
-                  isDragging
-                    ? "border-blue-500 bg-blue-50/50"
-                    : "border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-50"
-                }`}
+                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all cursor-pointer ${isDragging
+                  ? "border-blue-500 bg-blue-50/50"
+                  : "border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
               >
                 <div className="flex size-14 items-center justify-center rounded-full bg-blue-100/80 text-blue-600 mb-3.5 shadow-sm">
                   <UploadCloud size={28} />
@@ -131,7 +150,7 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
                   Nhấp để tải file lên <span className="font-normal text-slate-500">hoặc kéo thả vào đây</span>
                 </p>
                 <p className="mt-1.5 text-xs text-slate-400">
-                  Hỗ trợ các định dạng: <span className="font-mono text-slate-600">.py, .cpp, .java, .c, .js</span> (Tối đa 2 MB)
+                  Hỗ trợ: <span className="font-mono text-slate-600">.py, .cpp, .java, .c, .js</span> (Tối đa 2 MB)
                 </p>
               </div>
             ) : (
@@ -146,7 +165,7 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
                       {selectedFile.name}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {(selectedFile.size / 1024).toFixed(1)} KB • Hệ thống tự động nhận diện ngôn ngữ
+                      {(selectedFile.size / 1024).toFixed(1)} KB • Tự động nhận diện ngôn ngữ
                     </p>
                   </div>
                 </div>
@@ -170,7 +189,7 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
             )}
 
             <p className="text-xs text-slate-400 text-center">
-              Lưu ý: Đảm bảo code của bạn đọc dữ liệu từ đầu vào chuẩn (Standard Input).
+              Lưu ý: Mã nguồn cần đọc dữ liệu từ Standard Input (cin / scanf / input) và in kết quả ra Standard Output.
             </p>
 
             {/* Footer Buttons */}
@@ -186,7 +205,7 @@ export function SubmitModal({ assignment, onClose }: SubmitModalProps) {
                 onClick={handleSubmit}
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer shadow-sm shadow-blue-200"
               >
-                <Send size={15} /> {isSubmitting ? "Đang tải lên..." : "Gửi bài chấm"}
+                <Send size={15} /> {isSubmitting ? "Đang gửi file..." : "Gửi bài chấm AI"}
               </button>
             </div>
           </div>

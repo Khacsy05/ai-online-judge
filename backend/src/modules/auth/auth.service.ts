@@ -13,19 +13,28 @@ export class AuthService {
         const { email, password } = loginDto;
         const user = await this.prisma.user.findUnique({
             where: { email: email },
-
-        })
+            include: {
+                classrooms: {
+                    include: {
+                        classroom: {
+                            select: { id: true, code: true, name: true }
+                        }
+                    }
+                }
+            }
+        });
         if (!user) {
             throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
         }
 
-
-
-        // 3. So sánh mật khẩu (Thực tế bạn nên dùng thư viện 'bcrypt' để hash mật khẩu)
+        // 3. So sánh mật khẩu
         const isPasswordMatched = await bcrypt.compare(password, user.password);
         if (!isPasswordMatched) {
             throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
         }
+
+        const primaryClassroomId = user.classrooms?.[0]?.classroomId || null;
+        const classrooms = user.classrooms?.map(c => c.classroom) || [];
 
         const accessToken = jwt.sign(
             {
@@ -33,11 +42,11 @@ export class AuthService {
                 name: user.fullName,
                 email: user.email,
                 role: user.role,
-
+                classroomId: primaryClassroomId,
             },
             process.env.JWT_ACCESS_SECRET || "ACCESS_SECRET_KEY",
             { expiresIn: "15m" }
-        )
+        );
 
         const refreshToken = jwt.sign(
             {
@@ -45,11 +54,11 @@ export class AuthService {
                 name: user.fullName,
                 email: user.email,
                 role: user.role,
-
+                classroomId: primaryClassroomId,
             },
             process.env.JWT_REFRESH_SECRET || "REFRESH_SECRET_KEY",
             { expiresIn: "7d" }
-        )
+        );
 
         response.cookie('refreshToken', refreshToken, {
             httpOnly: true,
@@ -59,7 +68,7 @@ export class AuthService {
             path: '/',
         });
 
-        // 4. Nếu khớp hoàn toàn, trả về thông tin user (hoặc Access Token JWT)
+        // 4. Nếu khớp hoàn toàn, trả về thông tin user (kèm lớp học)
         return {
             message: 'Đăng nhập thành công',
             accessToken,
@@ -68,37 +77,47 @@ export class AuthService {
                 name: user.fullName,
                 email: user.email,
                 role: user.role,
+                classroomId: primaryClassroomId,
+                classrooms,
             },
         };
     }
     async refreshTokens(request: Express.Request, response: Express.Response) {
         const refreshToken = request.cookies?.['refreshToken'];
         try {
-            // 🔍 A. Kiểm tra chữ ký và hạn sử dụng của Refresh Toke
-
             const payload = jwt.verify(
                 refreshToken,
                 process.env.JWT_REFRESH_SECRET || 'REFRESH_SECRET_KEY'
             ) as any;
 
-            // 🔍 B. (Tùy chọn) Kiểm tra User trong CSDL xem có còn tồn tại/bị khóa hay không
             const user = await this.prisma.user.findUnique({
                 where: { id: payload.id },
-
+                include: {
+                    classrooms: {
+                        include: {
+                            classroom: {
+                                select: { id: true, code: true, name: true }
+                            }
+                        }
+                    }
+                }
             });
 
             if (!user) {
                 throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa hoặc không tồn tại');
             }
 
+            const primaryClassroomId = user.classrooms?.[0]?.classroomId || null;
+            const classrooms = user.classrooms?.map(c => c.classroom) || [];
 
-            // 💡 Nếu hợp lệ hoàn toàn -> Tạo cặp Token mới
+            // 💡 Tạo cặp Token mới kèm classroomId
             const newAccessToken = jwt.sign(
                 {
                     id: user.id,
                     name: user.fullName,
                     email: user.email,
                     role: user.role,
+                    classroomId: primaryClassroomId,
                 },
                 process.env.JWT_ACCESS_SECRET || 'ACCESS_SECRET_KEY',
                 { expiresIn: '15m' }
@@ -110,6 +129,7 @@ export class AuthService {
                     name: user.fullName,
                     email: user.email,
                     role: user.role,
+                    classroomId: primaryClassroomId,
                 },
                 process.env.JWT_REFRESH_SECRET || 'REFRESH_SECRET_KEY',
                 { expiresIn: '7d' }
@@ -124,7 +144,16 @@ export class AuthService {
             });
 
             return {
+                message: 'Làm mới Token thành công',
                 accessToken: newAccessToken,
+                user: {
+                    id: user.id,
+                    name: user.fullName,
+                    email: user.email,
+                    role: user.role,
+                    classroomId: primaryClassroomId,
+                    classrooms,
+                },
             };
         } catch (error) {
             // ❌ Nếu token bị sai chữ ký hoặc HẾT HẠN (expired), jwt.verify sẽ văng lỗi vào đây
