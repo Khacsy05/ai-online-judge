@@ -32,6 +32,23 @@ export const useStudentStore = create<StudentState>((set, get) => ({
       return;
     }
 
+    // Nếu Auth đang trong quá trình khôi phục phiên (isInitializing = true),
+    // chờ cho đến khi nạp xong token và classroomId từ refreshToken
+    if (useAuthStore.getState().isInitializing) {
+      await new Promise<void>((resolve) => {
+        let count = 0;
+        const checkInit = () => {
+          count++;
+          if (!useAuthStore.getState().isInitializing || count > 30) {
+            resolve();
+          } else {
+            setTimeout(checkInit, 30);
+          }
+        };
+        checkInit();
+      });
+    }
+
     try {
       // Chỉ bật loading xoay xoay nếu chưa từng có dữ liệu trước đó
       if (!get().progress) {
