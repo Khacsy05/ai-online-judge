@@ -231,13 +231,15 @@ export class ClassroomsService {
       const subs = submissions.filter(s => s.assignmentId === assign.id);
       const attemptCount = subs.length;
       let bestScore = 0;
+      let latestScore = 0;
       let isSolved = false;
       let latestStatus: string = 'NOT_SUBMITTED';
 
       if (subs.length > 0) {
         latestStatus = subs[0].status;
+        latestScore = subs[0].totalScore;
         bestScore = Math.max(...subs.map(s => s.totalScore));
-        isSolved = subs.some(s => s.status === JudgeStatus.ACCEPTED);
+        isSolved = subs.some(s => s.status === JudgeStatus.ACCEPTED) || bestScore >= 10.0;
       }
 
       return {
@@ -252,6 +254,7 @@ export class ClassroomsService {
         deadline: assign.deadline,
         attemptCount,
         bestScore,
+        latestScore,
         maxPossibleScore: 10.0,
         isSolved,
         latestStatus,

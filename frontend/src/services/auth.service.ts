@@ -2,6 +2,7 @@ import { DataLogin } from "@/types/auth";
 import apiClient from "@/lib/apiClient";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useStudentStore } from "@/store/useStudentStore";
+import { useSubmissionStore } from "@/store/useSubmissionStore";
 
 export async function loginUser(data: DataLogin) {
   try {
@@ -22,9 +23,10 @@ export async function logoutUser() {
   } catch (error) {
     console.error("Lỗi khi đăng xuất trên máy chủ:", error);
   } finally {
-    // 2. Xóa sạch Zustand RAM (Auth + Student Cache), LocalStorage và Cookie
+    // 2. Xóa sạch Zustand RAM (Auth + Student Cache + Submission Cache), LocalStorage và Cookie
     useAuthStore.getState().logout();
     useStudentStore.getState().resetProgress();
+    useSubmissionStore.getState().reset();
     if (typeof window !== "undefined") {
       localStorage.removeItem("access_token");
       localStorage.removeItem("current_user");

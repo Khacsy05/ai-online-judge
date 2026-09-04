@@ -6,7 +6,7 @@ import { Code2, Lock, Mail, Loader2, ArrowRight, Sparkles, UserCheck } from "luc
 import { loginUser } from "@/services/auth.service";
 import { useAuthStore } from "@/store/useAuthStore";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl");
@@ -180,5 +180,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#f7f8fa]"><Loader2 className="animate-spin text-blue-600" size={32} /></div>}>
+      <LoginForm />
+    </React.Suspense>
   );
 }

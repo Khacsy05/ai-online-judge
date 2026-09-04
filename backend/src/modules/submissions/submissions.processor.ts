@@ -70,6 +70,7 @@ export class SubmissionsProcessor extends WorkerHost {
     // Hàm này tự động chạy khi có job mới được lấy ra từ hàng đợi Redis
     async process(job: Job<{ submissionId: string }>): Promise<any> {
         const { submissionId } = job.data;
+        const jobStartTime = Date.now();
         console.log(`⏳ Bắt đầu chấm bài cho Submission ID: ${submissionId}`);
 
         // 1. Chuyển trạng thái bài nộp sang RUNNING (Đang chấm) dưới DB
@@ -219,7 +220,8 @@ export class SubmissionsProcessor extends WorkerHost {
                 progressPercentage,
             });
 
-            console.log(`✅ Chấm bài hoàn tất cho Submission ID: ${submissionId}`);
+            const totalDuration = Date.now() - jobStartTime;
+            console.log(`✅ Chấm bài hoàn tất cho Submission ID: ${submissionId} | Tổng thời gian toàn bộ: ${totalDuration}ms (${(totalDuration / 1000).toFixed(2)}s)`);
         } catch (error) {
             console.error(`❌ Lỗi khi chấm bài ${submissionId}:`, error);
             await this.prisma.submission.update({

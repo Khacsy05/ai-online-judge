@@ -20,14 +20,21 @@ export class AiService {
    * @param modelName Tên model sử dụng (mặc định là gemini-2.5-flash)
    */
   async generateText(prompt: string, modelName = 'gemini-2.5-flash'): Promise<string> {
+    const startTime = Date.now();
     try {
       const response = await this.ai.models.generateContent({
         model: modelName,
         contents: prompt,
+        config: {
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       });
+      const durationMs = Date.now() - startTime;
+      console.log(`⏱️ [Gemini AI] generateText hoàn thành trong: ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`);
       return response.text ?? '';
     } catch (error) {
-      console.error('❌ Lỗi gọi Gemini API (Text):', error);
+      const durationMs = Date.now() - startTime;
+      console.error(`❌ [Gemini AI] Lỗi gọi Gemini API (Text) sau ${durationMs}ms:`, error);
       throw error;
     }
   }
@@ -39,6 +46,7 @@ export class AiService {
    * @param modelName Tên model sử dụng (mặc định là gemini-2.5-flash)
    */
   async generateJson<T>(prompt: string, schema: any, modelName = 'gemini-2.5-flash'): Promise<T> {
+    const startTime = Date.now();
     try {
       const response = await this.ai.models.generateContent({
         model: modelName,
@@ -46,11 +54,15 @@ export class AiService {
         config: {
           responseMimeType: 'application/json',
           responseSchema: schema,
+          thinkingConfig: { thinkingBudget: 0 },
         },
       });
+      const durationMs = Date.now() - startTime;
+      console.log(`⏱️ [Gemini AI] Chấm bài (generateJson) hoàn thành trong: ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`);
       return JSON.parse(response.text ?? '{}') as T;
     } catch (error) {
-      console.error('❌ Lỗi gọi Gemini API (JSON):', error);
+      const durationMs = Date.now() - startTime;
+      console.error(`❌ [Gemini AI] Lỗi gọi Gemini API (JSON) sau ${durationMs}ms:`, error);
       throw error;
     }
   }

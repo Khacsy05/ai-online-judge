@@ -16,6 +16,7 @@ import { SubmissionsService } from './submissions.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { QuerySubmissionsDto } from './dto/query-submissions-dto';
 
 @Controller('submissions')
 export class SubmissionsController {
@@ -41,11 +42,8 @@ export class SubmissionsController {
   }
 
   @Get()
-  async findAll(
-    @Query('userId') userId?: string,
-    @Query('assignmentId') assignmentId?: string,
-  ) {
-    return this.submissionsService.findAll(userId, assignmentId);
+  async findAll(@Query() query: QuerySubmissionsDto) {
+    return this.submissionsService.findAll(query);
   }
 
   @Get(':id')
