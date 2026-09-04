@@ -19,13 +19,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             return;
         }
 
+        // Nếu vừa đăng nhập xong và RAM Zustand đã có sẵn accessToken + classroomId, không cần gọi refreshToken lại
+        if (useAuthStore.getState().accessToken) {
+            setIsInitializing(false);
+            return;
+        }
+
         const silentRefresh = async () => {
             try {
                 // Backend sẽ tự đọc Refresh Token trong HttpOnly Cookie
                 const res = await apiClient.post('/auth/refreshToken');
 
                 if (res.data?.accessToken) {
-                    setAuth(res.data.accessToken);
+                    setAuth(res.data.accessToken, res.data.user);
+                } else {
+                    setIsInitializing(false);
                 }
             } catch (error) {
                 // Nếu chưa có cookie hoặc hết hạn phiên
