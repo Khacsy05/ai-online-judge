@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from 'src/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { Prisma, JudgeStatus } from '@prisma/client';
+import { QuerySubmissionsDto } from './dto/query-submissions-dto';
 
 @Injectable()
 export class SubmissionsService {
@@ -106,36 +108,138 @@ export class SubmissionsService {
     return submission;
   }
 
-  async findAll(userId?: string, assignmentId?: string) {
-    return this.prisma.submission.findMany({
-      where: {
-        userId: userId || undefined,
-        assignmentId: assignmentId || undefined,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            studentCode: true,
-          },
-        },
-        assignment: {
-          select: {
-            id: true,
+  async findAll(query: QuerySubmissionsDto) {
+    const { userId, assignmentId, search, status, language } = query;
+    const page = Number(query.page) > 0 ? Number(query.page) : 1;
+    const limit = Number(query.limit) > 0 ? Number(query.limit) : 10;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.SubmissionWhereInput = {};
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (assignmentId) {
+      where.assignmentId = assignmentId;
+    }
+
+    if (status && (status as any) !== 'ALL') {
+      where.status = status;
+    }
+
+    if (language && language !== 'ALL') {
+      where.language = language.toLowerCase();
+    }
+
+    if (search && search.trim()) {
+      const keyword = search.trim();
+      where.OR = [
+        {
+          assignment: {
             problem: {
-              select: {
-                id: true,
-                title: true,
+              title: {
+                contains: keyword,
               },
             },
           },
         },
+        {
+          user: {
+            fullName: {
+              contains: keyword,
+            },
+          },
+        },
+        {
+          user: {
+            studentCode: {
+              contains: keyword,
+            },
+          },
+        },
+      ];
+    }
+
+    // Query danh sách phân trang và tổng số lượng bản ghi
+    const [total, items] = await Promise.all([
+      this.prisma.submission.count({ where }),
+      this.prisma.submission.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              studentCode: true,
+            },
+          },
+          assignment: {
+            select: {
+              id: true,
+              problem: {
+                select: {
+                  id: true,
+                  title: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    // Tính số liệu thống kê tổng thể nếu có userId
+    let stats: {
+      total: number;
+      acceptedCount: number;
+      rate: number;
+      avgScore: string;
+    } | null = null;
+    if (userId) {
+      const [userTotal, userAccepted, avgScoreAggregate] = await Promise.all([
+        this.prisma.submission.count({
+          where: { userId, status: { not: JudgeStatus.CANCELLED } },
+        }),
+        this.prisma.submission.count({
+          where: { userId, status: JudgeStatus.ACCEPTED },
+        }),
+        this.prisma.submission.aggregate({
+          where: { userId, status: { not: JudgeStatus.CANCELLED } },
+          _avg: { totalScore: true },
+        }),
+      ]);
+
+      const rate = userTotal > 0 ? Math.round((userAccepted / userTotal) * 100) : 0;
+      const avgScore = (avgScoreAggregate._avg.totalScore || 0).toFixed(1);
+
+      stats = {
+        total: userTotal,
+        acceptedCount: userAccepted,
+        rate,
+        avgScore,
+      };
+    }
+
+    return {
+      data: items,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+      stats,
+    };
   }
 
   async findOne(id: string) {

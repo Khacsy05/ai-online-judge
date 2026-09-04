@@ -4,10 +4,19 @@
 import apiClient from '@/lib/apiClient';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useEffect } from 'react';
+import { getSocket } from '@/lib/socket';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
     const setAuth = useAuthStore((state) => state.setAuth);
     const setIsInitializing = useAuthStore((state) => state.setIsInitializing);
+    const userId = useAuthStore((state) => state.userId);
+
+    // Tự động kết nối Socket ngay khi có userId (vừa đăng nhập hoặc vừa khôi phục phiên)
+    useEffect(() => {
+        if (userId) {
+            getSocket(userId);
+        }
+    }, [userId]);
 
     useEffect(() => {
         // Nếu người dùng đang ở trang đăng nhập, không cần gọi silentRefresh

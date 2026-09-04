@@ -11,10 +11,14 @@ import {
   Loader2,
   AlertCircle,
   Sparkles,
+  Eye,
 } from "lucide-react";
 import { Assignment, ClassroomProgress } from "@/types";
 import { DetailModal } from "@/components/detail-modal";
 import { SubmitModal } from "@/components/submit-modal";
+import { SubmissionDetailModal } from "@/components/submission-detail-modal";
+import { getSubmissions, getSubmissionById } from "@/services/submission.service";
+import { SubmissionDetailResponse } from "@/types/submission";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useStudentStore } from "@/store/useStudentStore";
 
@@ -68,6 +72,42 @@ export default function StudentDashboard() {
   const [query, setQuery] = useState("");
 
   const currentUser = useAuthStore((state) => state.user);
+
+  // Xem chi tiết lỗi bài nộp
+  const [viewSubmissionDetail, setViewSubmissionDetail] =
+    useState<SubmissionDetailResponse | null>(null);
+  const [loadingSubmissionId, setLoadingSubmissionId] = useState<string | null>(
+    null
+  );
+
+  const handleOpenSubmissionDetail = async (submissionId: string) => {
+    try {
+      setLoadingSubmissionId(submissionId);
+      const detail = await getSubmissionById(submissionId);
+      setViewSubmissionDetail(detail);
+    } catch (err) {
+      console.error("Lỗi khi tải chi tiết bài nộp:", err);
+    } finally {
+      setLoadingSubmissionId(null);
+    }
+  };
+
+  const handleViewLatestSubmission = async (assignmentId: string) => {
+    try {
+      const targetUserId = currentUser?.id || useAuthStore.getState().userId;
+      const res = await getSubmissions({
+        userId: targetUserId || undefined,
+        assignmentId,
+        limit: 1,
+      });
+      const list = res?.data || (Array.isArray(res) ? res : []);
+      if (list && list.length > 0) {
+        await handleOpenSubmissionDetail(list[0].id);
+      }
+    } catch (err) {
+      console.error("Lỗi khi tải bài nộp gần nhất:", err);
+    }
+  };
 
   useEffect(() => {
     fetchProgress();
@@ -234,6 +274,19 @@ export default function StudentDashboard() {
               statusDisplayMap[a.latestStatus] || statusDisplayMap.NOT_SUBMITTED;
 
             const isSubmitted = a.attemptCount > 0;
+            const isSolved = a.isSolved || a.bestScore >= a.maxPossibleScore;
+
+            // Xác định nhãn trạng thái:
+            // Nếu đã từng làm đúng (10đ), luôn giữ trạng thái Đã hoàn thành (màu xanh)
+            const displayStatus = !isSubmitted
+              ? { text: "Chưa nộp", style: statusDisplayMap.NOT_SUBMITTED.style }
+              : isSolved
+              ? { text: `Đã hoàn thành (${a.bestScore}đ)`, style: statusDisplayMap.ACCEPTED.style }
+              : {
+                  text: `${statusInfo.text} (${a.latestScore ?? a.bestScore}đ)`,
+                  style: statusInfo.style,
+                };
+
             const deadlineStr = a.deadline
               ? new Date(a.deadline).toLocaleDateString("vi-VN", {
                 day: "2-digit",
@@ -267,22 +320,37 @@ export default function StudentDashboard() {
                   </p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-3">
+                <div className="flex shrink-0 items-center gap-2.5">
                   {/* Trạng thái và điểm số */}
                   <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusInfo.style}`}
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${displayStatus.style}`}
                   >
-                    {isSubmitted
-                      ? `${statusInfo.text} (${a.bestScore}đ)`
-                      : "Chưa nộp"}
+                    {displayStatus.text}
                   </span>
 
-                  {/* Nút Xem chi tiết */}
+                  {/* Nút Xem lỗi lần nộp gần nhất nếu bài CHƯA hoàn thành và bị lỗi */}
+                  {!isSolved && isSubmitted && a.latestStatus !== "ACCEPTED" && (
+                    <button
+                      onClick={() => handleViewLatestSubmission(a.assignmentId)}
+                      disabled={loadingSubmissionId !== null}
+                      className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/70 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 cursor-pointer transition-colors shadow-2xs"
+                      title="Xem chi tiết lỗi lần nộp gần nhất"
+                    >
+                      {loadingSubmissionId ? (
+                        <Loader2 size={13} className="animate-spin text-rose-600" />
+                      ) : (
+                        <Eye size={13} />
+                      )}
+                      <span className="hidden sm:inline">Xem lỗi</span>
+                    </button>
+                  )}
+
+                  {/* Nút Xem chi tiết đề bài */}
                   <button
                     onClick={() => setSelected(a)}
                     className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
                   >
-                    Xem chi tiết <ChevronRight size={15} />
+                    Đề bài <ChevronRight size={15} />
                   </button>
 
                   {/* Nút Nộp bài / Nộp lại */}
@@ -315,6 +383,7 @@ export default function StudentDashboard() {
             setSelected(null);
             setSubmitFor(current);
           }}
+          onViewLatestSubmission={handleViewLatestSubmission}
         />
       )}
 
@@ -326,8 +395,15 @@ export default function StudentDashboard() {
             // Khi nộp bài thành công, tự động load lại tiến độ để cập nhật điểm mới nhất
             fetchProgress(true);
           }}
+          onViewDetail={handleOpenSubmissionDetail}
         />
       )}
+
+      {/* Modal xem chi tiết bài nộp & lỗi */}
+      <SubmissionDetailModal
+        submission={viewSubmissionDetail}
+        onClose={() => setViewSubmissionDetail(null)}
+      />
     </div>
   );
 }

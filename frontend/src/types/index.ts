@@ -16,6 +16,7 @@ export type Assignment = {
   deadline: string;
   attemptCount: number;
   bestScore: number;
+  latestScore?: number;
   maxPossibleScore: number;
   isSolved: boolean;
   latestStatus: string; // 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'COMPILATION_ERROR' | 'PENDING' | 'RUNNING' | 'NOT_SUBMITTED'
@@ -32,3 +33,7 @@ export type ClassroomProgress = {
   progressPercentage: number;
   assignments: Assignment[];
 };
+
+export * from "./submission";
+export * from "./auth";
+export * from "./classroom";

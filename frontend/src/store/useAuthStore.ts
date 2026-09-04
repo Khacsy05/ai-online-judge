@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
+import { disconnectSocket } from "@/lib/socket";
 
 export type Role = "ADMIN" | "STUDENT" | "LECTURER";
 
@@ -90,6 +91,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
             localStorage.removeItem("current_user");
             document.cookie = "access_token=; path=/; max-age=0";
             document.cookie = "refreshToken=; path=/; max-age=0";
+            disconnectSocket();
         }
 
         set({
