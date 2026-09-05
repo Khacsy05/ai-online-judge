@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
 import { ClassroomsService } from './classrooms.service';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { QueryClassroomsDto } from './dto/query-classrooms.dto';
 
 @Controller('classrooms')
 export class ClassroomsController {
@@ -35,8 +36,8 @@ export class ClassroomsController {
 
   @Get(':id/leaderboard')
   @UseGuards(JwtAuthGuard)
-  getLeaderboard(@Param('id') id: string) {
-    return this.classroomsService.getClassroomLeaderboard(id);
+  getLeaderboard(@Param('id') id: string, @Query() query: QueryClassroomsDto) {
+    return this.classroomsService.getClassroomLeaderboard(id, query);
   }
 
   @Get(':id/my-progress')

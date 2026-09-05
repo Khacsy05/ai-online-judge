@@ -23,3 +23,15 @@ export async function getMyProgress(classroomId: string) {
     throw error;
   }
 }
+
+export async function getClassroomLeaderboard(classroomId: string, query?: ClassQueryDto) {
+  try {
+    const response = await apiClient.get(`/classrooms/${classroomId}/leaderboard`, {
+      params: query,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Lỗi khi lấy bảng xếp hạng lớp học:', error);
+    throw error;
+  }
+}

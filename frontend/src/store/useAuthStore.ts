@@ -33,10 +33,12 @@ interface AuthStore {
     email: string | null;
     classroomId: string | null;
     isInitializing: boolean;
+    isLoggingOut: boolean;
 
     setAuth: (accessToken: string, userDetail?: Partial<UserDetail>) => void;
     logout: () => void;
     setIsInitializing: (status: boolean) => void;
+    setIsLoggingOut: (status: boolean) => void;
     updateUserDetail: (name: string, email: string) => void;
 }
 
@@ -49,6 +51,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     email: null,
     classroomId: null,
     isInitializing: true,
+    isLoggingOut: false,
 
     setAuth: (accessToken: string, userDetail?: Partial<UserDetail>) => {
         if (!accessToken || typeof accessToken !== "string") {
@@ -107,6 +110,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     },
 
     setIsInitializing: (status: boolean) => set({ isInitializing: status }),
+    setIsLoggingOut: (status: boolean) => set({ isLoggingOut: status }),
 
     updateUserDetail: (name: string, email: string) =>
         set((state) => ({

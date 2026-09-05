@@ -13,7 +13,7 @@ function getRoleFromToken(token: string): string | null {
   }
 }
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Lấy token từ Cookie (Ưu tiên access_token set từ frontend, sau đó mới tới refreshToken)
