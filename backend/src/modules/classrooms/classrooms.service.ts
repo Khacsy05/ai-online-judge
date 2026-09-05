@@ -3,6 +3,7 @@ import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Role, JudgeStatus } from '@prisma/client';
+import { QueryClassroomsDto } from './dto/query-classrooms.dto';
 
 @Injectable()
 export class ClassroomsService {
@@ -32,7 +33,11 @@ export class ClassroomsService {
     });
   }
 
-  async getClassroomLeaderboard(classroomId: string) {
+  async getClassroomLeaderboard(classroomId: string, query: QueryClassroomsDto) {
+    const { page, limit } = query
+    const pageNumber = Math.max(1, Number(page) || 1)
+    const limitNumber = Math.max(1, Number(limit) || 6)
+    const skip = (pageNumber - 1) * limitNumber
     // Check if classroom exists
     const classroom = await this.prisma.classroom.findUnique({
       where: { id: classroomId },
@@ -145,16 +150,44 @@ export class ClassroomsService {
       return b.solvedCount - a.solvedCount;
     });
 
+    // Gán thứ hạng rank chuẩn cho toàn bộ học sinh trước khi phân trang
+    const rankedLeaderboard = leaderboard.map((item, index) => ({
+      rank: index + 1,
+      ...item,
+    }));
+
+    // Tìm kiếm theo tên, mã sinh viên hoặc email nếu có query.search
+    let filteredLeaderboard = rankedLeaderboard;
+    if (query?.search && query.search.trim()) {
+      const keyword = query.search.trim().toLowerCase();
+      filteredLeaderboard = rankedLeaderboard.filter(
+        (item) =>
+          item.fullName.toLowerCase().includes(keyword) ||
+          item.studentCode.toLowerCase().includes(keyword) ||
+          item.email.toLowerCase().includes(keyword),
+      );
+    }
+
+    const total = filteredLeaderboard.length;
+    const totalPages = Math.ceil(total / limitNumber) || 1;
+    const paginatedLeaderboard = filteredLeaderboard.slice(skip, skip + limitNumber);
+
     return {
       classroomId,
       classroomCode: classroom.code,
       classroomName: classroom.name,
       totalAssignments: assignments.length,
       maxClassScore,
-      leaderboard: leaderboard.map((item, index) => ({
-        rank: index + 1,
-        ...item,
-      })),
+      studentCount: members.length,
+      leaderboard: paginatedLeaderboard,
+      meta: {
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages,
+        hasNextPage: pageNumber < totalPages,
+        hasPrevPage: pageNumber > 1,
+      },
     };
   }
 

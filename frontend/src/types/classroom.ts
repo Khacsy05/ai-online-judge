@@ -14,12 +14,21 @@ export interface LeaderboardStudent {
     userId: string;
     fullName: string;
     studentCode: string;
+    email: string;
     totalScore: number;
-    maxScore: number;
-    solvedCount: number;
-    totalAssignments: number;
+    maxClassScore: number;
     progressPercentage: number;
-    assignmentScores: Record<string, number>;
+    solvedCount: number;
+    scores: Record<string, number>;
+}
+
+export interface PaginationMeta {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
 }
 
 export interface LeaderboardResponse {
@@ -30,6 +39,7 @@ export interface LeaderboardResponse {
     maxClassScore: number;
     studentCount: number;
     leaderboard: LeaderboardStudent[];
+    meta: PaginationMeta;
 }
 
 export interface ClassQueryDto {

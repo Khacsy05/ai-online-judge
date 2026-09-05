@@ -15,7 +15,12 @@ function LoginForm() {
   const [password, setPassword] = useState("password123");
   const [loading, setLoading] = useState(false);
   const setAuth = useAuthStore((state) => state.setAuth);
+  const setIsLoggingOut = useAuthStore((state) => state.setIsLoggingOut);
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setIsLoggingOut(false);
+  }, [setIsLoggingOut]);
 
   // Điều hướng người dùng theo đúng Role sau khi đăng nhập thành công
   const getRedirectUrlByRole = (role: string, customCallback?: string | null) => {
