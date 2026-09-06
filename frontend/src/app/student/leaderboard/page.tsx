@@ -115,7 +115,7 @@ export default function LeaderboardPage() {
   const top1 = students.find((s) => s.rank === 1) || (page === 1 ? students[0] : null);
   const top2 = students.find((s) => s.rank === 2) || (page === 1 ? students[1] : null);
   const top3 = students.find((s) => s.rank === 3) || (page === 1 ? students[2] : null);
-
+  const topStudent = data?.topStudent || top1;
   const handlePageChange = (newPage: number) => {
     if (newPage === page || newPage < 1 || newPage > meta.totalPages) return;
     setPage(newPage);
@@ -232,13 +232,13 @@ export default function LeaderboardPage() {
             </div>
           </div>
           <p className="text-2xl font-bold text-slate-900">
-            {top1?.totalScore ?? 0}{" "}
+            {topStudent?.totalScore ?? 0}{" "}
             <span className="text-xs font-normal text-slate-400">
               / {data?.maxClassScore || 0} Điểm
             </span>
           </p>
           <p className="mt-1 text-xs text-slate-400 truncate">
-            {top1 ? `🏆 ${top1.fullName} (${top1.studentCode || top1.email})` : "Chưa có dữ liệu"}
+            {topStudent ? `🏆 ${topStudent.fullName} (${topStudent.studentCode || topStudent.email})` : "Chưa có dữ liệu"}
           </p>
         </div>
 
@@ -436,9 +436,8 @@ export default function LeaderboardPage() {
                   </tr>
                 </thead>
                 <tbody
-                  className={`divide-y divide-slate-100 transition-opacity duration-200 ${
-                    isPageLoading ? "opacity-60 pointer-events-none" : "opacity-100"
-                  }`}
+                  className={`divide-y divide-slate-100 transition-opacity duration-200 ${isPageLoading ? "opacity-60 pointer-events-none" : "opacity-100"
+                    }`}
                 >
                   {students.map((st) => {
                     const isCurrentUser =
@@ -476,11 +475,10 @@ export default function LeaderboardPage() {
                     return (
                       <tr
                         key={st.userId}
-                        className={`transition-colors hover:bg-slate-50/80 ${
-                          isCurrentUser
-                            ? "bg-blue-50/60 font-medium hover:bg-blue-50/90"
-                            : ""
-                        }`}
+                        className={`transition-colors hover:bg-slate-50/80 ${isCurrentUser
+                          ? "bg-blue-50/60 font-medium hover:bg-blue-50/90"
+                          : ""
+                          }`}
                       >
                         {/* Cột 1: Thứ hạng */}
                         <td className="py-4 pl-6 pr-4 text-center">{rankBadge}</td>
@@ -591,11 +589,10 @@ export default function LeaderboardPage() {
                         key={`page-${pageNum}`}
                         onClick={() => handlePageChange(pageNum)}
                         disabled={isPageLoading || isActive}
-                        className={`min-w-[32px] h-8 flex items-center justify-center rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-blue-600 text-white font-bold shadow-xs border border-blue-600 cursor-default"
-                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-blue-600 hover:border-blue-200"
-                        }`}
+                        className={`min-w-[32px] h-8 flex items-center justify-center rounded-lg text-xs font-semibold transition-all cursor-pointer ${isActive
+                          ? "bg-blue-600 text-white font-bold shadow-xs border border-blue-600 cursor-default"
+                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-blue-600 hover:border-blue-200"
+                          }`}
                       >
                         {pageNum}
                       </button>

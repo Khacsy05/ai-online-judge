@@ -92,20 +92,32 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleViewLatestSubmission = async (assignmentId: string) => {
+  const handleViewLatestSubmission = async (targetAssignment: Assignment) => {
     try {
+      // 1. Nếu đã có sẵn latestSubmissionId từ backend, gọi thẳng API chi tiết (tiết kiệm 1 lần gọi mạng)
+      if (targetAssignment.latestSubmissionId) {
+        await handleOpenSubmissionDetail(targetAssignment.latestSubmissionId);
+        setSelected(null);
+        return;
+      }
+
+      // 2. Dự phòng: Nếu chưa có latestSubmissionId, mới truy vấn danh sách bài nộp
+      setLoadingSubmissionId(targetAssignment.assignmentId);
       const targetUserId = currentUser?.id || useAuthStore.getState().userId;
       const res = await getSubmissions({
         userId: targetUserId || undefined,
-        assignmentId,
+        assignmentId: targetAssignment.assignmentId,
         limit: 1,
       });
       const list = res?.data || (Array.isArray(res) ? res : []);
       if (list && list.length > 0) {
         await handleOpenSubmissionDetail(list[0].id);
+        setSelected(null);
       }
     } catch (err) {
       console.error("Lỗi khi tải bài nộp gần nhất:", err);
+    } finally {
+      setLoadingSubmissionId(null);
     }
   };
 
@@ -331,7 +343,7 @@ export default function StudentDashboard() {
                   {/* Nút Xem lỗi lần nộp gần nhất nếu bài CHƯA hoàn thành và bị lỗi */}
                   {!isSolved && isSubmitted && a.latestStatus !== "ACCEPTED" && (
                     <button
-                      onClick={() => handleViewLatestSubmission(a.assignmentId)}
+                      onClick={() => handleViewLatestSubmission(a)}
                       disabled={loadingSubmissionId !== null}
                       className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/70 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 cursor-pointer transition-colors shadow-2xs"
                       title="Xem chi tiết lỗi lần nộp gần nhất"
@@ -384,6 +396,7 @@ export default function StudentDashboard() {
             setSubmitFor(current);
           }}
           onViewLatestSubmission={handleViewLatestSubmission}
+          isLoadingDetail={Boolean(loadingSubmissionId)}
         />
       )}
 

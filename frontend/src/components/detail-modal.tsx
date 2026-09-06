@@ -1,14 +1,15 @@
 "use client";
 
 import React from "react";
-import { X, Send, FileCode, Clock, Cpu, Eye, AlertCircle, CheckCircle2 } from "lucide-react";
+import { X, Send, FileCode, Clock, Cpu, Eye, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Assignment } from "@/types";
 
 interface DetailModalProps {
   assignment: Assignment;
   onClose: () => void;
   onSubmit: () => void;
-  onViewLatestSubmission?: (assignmentId: string) => void;
+  onViewLatestSubmission?: (assignment: Assignment) => void;
+  isLoadingDetail?: boolean;
 }
 
 export function DetailModal({
@@ -16,6 +17,7 @@ export function DetailModal({
   onClose,
   onSubmit,
   onViewLatestSubmission,
+  isLoadingDetail = false,
 }: DetailModalProps) {
   const deadlineStr = assignment.deadline
     ? new Date(assignment.deadline).toLocaleDateString("vi-VN", {
@@ -143,14 +145,21 @@ export function DetailModal({
                 {onViewLatestSubmission && (
                   <button
                     type="button"
-                    onClick={() => {
-                      onClose();
-                      onViewLatestSubmission(assignment.assignmentId);
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer shadow-2xs self-start sm:self-auto"
+                    disabled={isLoadingDetail}
+                    onClick={() => onViewLatestSubmission(assignment)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer shadow-2xs self-start sm:self-auto disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Eye size={13} />
-                    <span>Xem lỗi & chi tiết lần nộp</span>
+                    {isLoadingDetail ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin text-blue-600" />
+                        <span>Đang tải...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye size={13} />
+                        <span>Xem lỗi & chi tiết lần nộp</span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>

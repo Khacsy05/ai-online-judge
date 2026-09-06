@@ -17,6 +17,7 @@ export type Assignment = {
   attemptCount: number;
   bestScore: number;
   latestScore?: number;
+  latestSubmissionId?: string | null;
   maxPossibleScore: number;
   isSolved: boolean;
   latestStatus: string; // 'ACCEPTED' | 'WRONG_ANSWER' | 'TIME_LIMIT_EXCEEDED' | 'RUNTIME_ERROR' | 'COMPILATION_ERROR' | 'PENDING' | 'RUNNING' | 'NOT_SUBMITTED'
