@@ -96,6 +96,8 @@ export interface SubmissionDetail {
     id: string;
     isHidden: boolean;
     score: number;
+    input?: string | null;
+    expectedOutput?: string | null;
   };
 }
 

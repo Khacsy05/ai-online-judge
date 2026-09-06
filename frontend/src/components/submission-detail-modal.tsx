@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import {
   X,
-  Sparkles,
   CheckCircle2,
   XCircle,
   Clock3,
@@ -14,6 +13,9 @@ import {
   FileCode,
   AlertTriangle,
   ChevronRight,
+  Lock,
+  Terminal,
+  ArrowRight,
 } from "lucide-react";
 import { SubmissionDetailResponse, JudgeStatus } from "@/types/submission";
 
@@ -87,8 +89,8 @@ export function SubmissionDetailModal({
   onClose,
 }: SubmissionDetailModalProps) {
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<"feedback" | "testcases" | "code">(
-    "feedback"
+  const [activeTab, setActiveTab] = useState<"testcases" | "code">(
+    "testcases"
   );
 
   if (!submission) return null;
@@ -180,33 +182,21 @@ export function SubmissionDetailModal({
         {/* Tabs Điều hướng nội dung */}
         <div className="flex border-b border-slate-100 px-6 pt-2">
           <button
-            onClick={() => setActiveTab("feedback")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
-              activeTab === "feedback"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <Sparkles size={14} /> Phản hồi từ AI
-          </button>
-          <button
             onClick={() => setActiveTab("testcases")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
-              activeTab === "testcases"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${activeTab === "testcases"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
           >
             <CheckCircle2 size={14} /> Test cases ({passedTestCases}/
             {details.length})
           </button>
           <button
             onClick={() => setActiveTab("code")}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
-              activeTab === "code"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${activeTab === "code"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
           >
             <Code2 size={14} /> Mã nguồn nộp
           </button>
@@ -214,27 +204,7 @@ export function SubmissionDetailModal({
 
         {/* Nội dung theo Tab (Scrollable) */}
         <div className="flex-1 overflow-y-auto p-6 text-slate-800">
-          {/* TAB 1: AI FEEDBACK */}
-          {activeTab === "feedback" && (
-            <div className="space-y-4">
-              {submission.feedback ? (
-                <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-slate-50 p-5 shadow-xs">
-                  <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm mb-2.5">
-                    <Sparkles size={16} className="text-blue-600" /> Nhận xét & Đánh giá chi tiết
-                  </div>
-                  <p className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed font-sans">
-                    {submission.feedback}
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-sm">
-                  Chưa có nhận xét nào cho bài nộp này.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: TEST CASES */}
+          {/* TAB 1: TEST CASES */}
           {activeTab === "testcases" && (
             <div className="space-y-3">
               {details.length > 0 ? (
@@ -250,11 +220,10 @@ export function SubmissionDetailModal({
                   return (
                     <div
                       key={item.id || idx}
-                      className={`rounded-xl border p-4 transition-all ${
-                        isAC
-                          ? "border-emerald-200 bg-emerald-50/20"
-                          : "border-rose-200 bg-rose-50/20"
-                      }`}
+                      className={`rounded-xl border p-4 transition-all ${isAC
+                        ? "border-emerald-200 bg-emerald-50/20"
+                        : "border-rose-200 bg-rose-50/20"
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -262,8 +231,8 @@ export function SubmissionDetailModal({
                             Test case #{idx + 1}
                           </span>
                           {item.testCase?.isHidden && (
-                            <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                              Ẩn
+                            <span className="inline-flex items-center gap-1 rounded bg-slate-200/80 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                              <Lock size={10} /> Ẩn
                             </span>
                           )}
                           <span
@@ -282,27 +251,88 @@ export function SubmissionDetailModal({
                         </div>
                       </div>
 
-                      {/* Hiển thị lỗi hoặc output nếu test case thất bại */}
+                      {/* Hiển thị lỗi hoặc so sánh kết quả nếu test case không AC */}
                       {!isAC && (
-                        <div className="mt-3 space-y-2 border-t border-slate-100 pt-2.5 text-xs">
+                        <div className="mt-3 space-y-3 border-t border-slate-200/70 pt-3 text-xs">
+                          {/* 1. Lỗi thực thi / biên dịch / crash */}
                           {item.errorMessage && (
                             <div>
-                              <span className="font-medium text-rose-600 block mb-1">
-                                Lỗi thực thi / biên dịch:
-                              </span>
-                              <pre className="rounded-lg bg-slate-900 p-2.5 text-rose-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap">
+                              <div className="flex items-center gap-1.5 font-semibold text-rose-600 mb-1.5">
+                                <AlertTriangle size={14} />
+                                <span>Chi tiết lỗi / Ngoại lệ (Runtime / Compile Error):</span>
+                              </div>
+                              <pre className="rounded-lg bg-slate-900 p-3 text-rose-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap leading-relaxed shadow-inner">
                                 {item.errorMessage}
                               </pre>
                             </div>
                           )}
-                          {item.actualOutput && (
-                            <div>
-                              <span className="font-medium text-slate-600 block mb-1">
-                                Kết quả chương trình in ra:
-                              </span>
-                              <pre className="rounded-lg bg-slate-100 p-2 font-mono text-[11px] overflow-x-auto text-slate-700">
-                                {item.actualOutput}
-                              </pre>
+
+                          {/* 2. Trường hợp Test case công khai (Public): So sánh Input, Expected, Actual */}
+                          {!item.testCase?.isHidden ? (
+                            <div className="space-y-2.5">
+                              {/* Dữ liệu đầu vào (Input) */}
+                              {item.testCase?.input != null && (
+                                <div>
+                                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                                    <Terminal size={12} className="text-slate-400" />
+                                    Đầu vào (Input)
+                                  </div>
+                                  <pre className="rounded-lg bg-slate-900/95 p-2.5 font-mono text-xs text-slate-200 overflow-x-auto whitespace-pre-wrap break-all shadow-inner">
+                                    {item.testCase.input || "(Đầu vào rỗng)"}
+                                  </pre>
+                                </div>
+                              )}
+
+                              {/* So sánh 2 khối song song: Kết quả kỳ vọng vs Kết quả chương trình */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                                {/* Kỳ vọng */}
+                                <div>
+                                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+                                    <CheckCircle2 size={13} className="text-emerald-600" />
+                                    Kết quả kỳ vọng (Expected Output)
+                                  </div>
+                                  <pre className="rounded-lg bg-emerald-950/20 border border-emerald-500/30 p-2.5 font-mono text-xs text-emerald-900 overflow-x-auto whitespace-pre-wrap break-all min-h-[52px]">
+                                    {item.testCase?.expectedOutput != null
+                                      ? item.testCase.expectedOutput
+                                      : "(Không có đáp án mẫu)"}
+                                  </pre>
+                                </div>
+
+                                {/* Thực tế code in ra */}
+                                <div>
+                                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-700 mb-1">
+                                    <XCircle size={13} className="text-rose-600" />
+                                    Kết quả code in ra (Your Output)
+                                  </div>
+                                  <pre className="rounded-lg bg-rose-950/20 border border-rose-500/30 p-2.5 font-mono text-xs text-rose-900 overflow-x-auto whitespace-pre-wrap break-all min-h-[52px]">
+                                    {item.actualOutput != null && item.actualOutput !== ""
+                                      ? item.actualOutput
+                                      : "(Chương trình không in ra kết quả)"}
+                                  </pre>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* 3. Trường hợp Test case ẩn (Hidden): Bảo mật dữ liệu, giải thích rõ */
+                            <div className="rounded-lg border border-dashed border-amber-200/90 bg-amber-50/50 p-3 space-y-2">
+                              <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
+                                <Lock size={14} className="text-amber-600 shrink-0" />
+                                <span>Đây là test case ẩn của bài tập</span>
+                              </div>
+                              <p className="text-[11px] text-amber-700 leading-normal">
+                                Dữ liệu đầu vào và kết quả kỳ vọng được ẩn để kiểm tra tư duy tổng quát của thuật toán và chống hardcode kết quả.
+                              </p>
+
+                              {item.actualOutput && (
+                                <div className="mt-2 pt-2 border-t border-amber-200/50">
+                                  <span className="text-[11px] font-semibold text-slate-600 block mb-1">
+                                    Kết quả chương trình của bạn đã in ra:
+                                  </span>
+                                  <pre className="rounded-lg bg-white border border-slate-200 p-2.5 font-mono text-xs text-slate-800 overflow-x-auto whitespace-pre-wrap break-all">
+                                    {item.actualOutput}
+                                  </pre>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

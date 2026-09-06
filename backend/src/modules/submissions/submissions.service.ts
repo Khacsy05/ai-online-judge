@@ -266,6 +266,8 @@ export class SubmissionsService {
                 id: true,
                 isHidden: true,
                 score: true,
+                input: true,
+                expectedOutput: true,
               },
             },
           },
@@ -277,6 +279,24 @@ export class SubmissionsService {
       throw new NotFoundException(`Bài nộp với ID "${id}" không tồn tại.`);
     }
 
-    return submission;
+    // Bảo vệ tính bảo mật: Ẩn input/expectedOutput nếu là test case ẩn (hidden)
+    const sanitizedDetails = submission.details.map((detail) => {
+      if (detail.testCase?.isHidden) {
+        return {
+          ...detail,
+          testCase: {
+            ...detail.testCase,
+            input: null,
+            expectedOutput: null,
+          },
+        };
+      }
+      return detail;
+    });
+
+    return {
+      ...submission,
+      details: sanitizedDetails,
+    };
   }
 }

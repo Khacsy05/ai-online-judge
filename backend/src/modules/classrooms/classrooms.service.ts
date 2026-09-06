@@ -168,6 +168,14 @@ export class ClassroomsService {
       );
     }
 
+    const topStudent = rankedLeaderboard.length > 0 ? {
+      userId: rankedLeaderboard[0].userId,
+      fullName: rankedLeaderboard[0].fullName,
+      studentCode: rankedLeaderboard[0].studentCode,
+      email: rankedLeaderboard[0].email,
+      totalScore: rankedLeaderboard[0].totalScore,
+    } : null;
+
     const total = filteredLeaderboard.length;
     const totalPages = Math.ceil(total / limitNumber) || 1;
     const paginatedLeaderboard = filteredLeaderboard.slice(skip, skip + limitNumber);
@@ -178,6 +186,7 @@ export class ClassroomsService {
       classroomName: classroom.name,
       totalAssignments: assignments.length,
       maxClassScore,
+      topStudent,
       studentCount: members.length,
       leaderboard: paginatedLeaderboard,
       meta: {
@@ -288,6 +297,7 @@ export class ClassroomsService {
         attemptCount,
         bestScore,
         latestScore,
+        latestSubmissionId: subs[0]?.id || null,
         maxPossibleScore: 10.0,
         isSolved,
         latestStatus,
