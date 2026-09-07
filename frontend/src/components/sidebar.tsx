@@ -8,7 +8,13 @@ import {
   BookOpen,
   Send,
   Trophy,
+  Users,
+  GraduationCap,
+  FileCode2,
+  FolderGit2,
+  Settings,
 } from "lucide-react";
+import { useAuthStore } from "@/store/useAuthStore";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -18,9 +24,10 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const role = useAuthStore((state) => state.role || state.user?.role);
 
-  // Danh sách các mục điều hướng
-  const navItems = [
+  // Danh sách menu cho Sinh viên
+  const studentNavItems = [
     {
       label: "Tổng quan",
       path: "/student",
@@ -37,6 +44,40 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       icon: Send,
     },
   ];
+
+  // Danh sách menu cho Quản trị viên (Admin)
+  const adminNavItems = [
+    {
+      label: "Bảng điều khiển",
+      path: "/admin",
+      icon: LayoutDashboard,
+    },
+    {
+      label: "Quản lý người dùng",
+      path: "/admin/users",
+      icon: Users,
+    },
+    {
+      label: "Quản lý lớp học",
+      path: "/admin/classrooms",
+      icon: GraduationCap,
+    },
+    {
+      label: "Ngân hàng bài tập",
+      path: "/admin/problems",
+      icon: FileCode2,
+    },
+    {
+      label: "Bài nộp toàn hệ thống",
+      path: "/admin/submissions",
+      icon: FolderGit2,
+    },
+  ];
+
+  // Chọn menu theo role hiện tại hoặc theo URL
+  const isAdminArea = pathname.startsWith("/admin") || role === "ADMIN";
+  const navItems = isAdminArea ? adminNavItems : studentNavItems;
+  const sectionTitle = isAdminArea ? "Quản trị hệ thống" : "Không gian học tập";
 
   const handleNavigate = (path: string) => {
     router.push(path);
@@ -75,7 +116,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Navigation List */}
         <div className="mt-7">
           <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-            Không gian học tập
+            {sectionTitle}
           </p>
           <nav className="space-y-1">
             {navItems.map((item) => {
@@ -83,7 +124,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               // Kiểm tra xem mục này có đang active (được chọn) hay không
               const isActive =
                 pathname === item.path ||
-                (item.path === "/student" && (pathname === "/student" || pathname === "/"));
+                (item.path !== "/student" && item.path !== "/admin" && pathname.startsWith(item.path));
 
               return (
                 <button
@@ -106,10 +147,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         {/* Hỗ trợ */}
-        <div className="absolute bottom-5 left-5 right-5 rounded-xl bg-slate-50 p-4">
-          <p className="text-xs font-semibold text-slate-700">Cần hỗ trợ?</p>
+        <div className="absolute bottom-5 left-5 right-5 rounded-xl bg-slate-50 p-4 border border-slate-100">
+          <p className="text-xs font-semibold text-slate-700">
+            {isAdminArea ? "Phiên làm việc Quản trị" : "Cần hỗ trợ?"}
+          </p>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Liên hệ giảng viên nếu bạn gặp vấn đề trong quá trình làm bài.
+            {isAdminArea
+              ? "Quyền Admin: quản lý lớp học, ngân hàng đề bài và người dùng."
+              : "Liên hệ giảng viên nếu bạn gặp vấn đề trong quá trình làm bài."}
           </p>
         </div>
       </aside>

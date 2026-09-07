@@ -1,6 +1,7 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { ClassroomProgress } from "@/types";
-import { getMyProgress, getClassList } from "@/services";
+import { getMyProgress } from "@/services";
 import { useAuthStore } from "./useAuthStore";
 
 interface StudentState {
@@ -8,7 +9,7 @@ interface StudentState {
   loading: boolean;
   error: string | null;
 
-  // Lấy dữ liệu: Nếu đã có trong Zustand và không ép buộc (force = false) thì không gọi lại API
+  // Lấy dữ liệu: SWR pattern - nếu đã có cache hiển thị ngay, gọi API ngầm để cập nhật mới nhất
   fetchProgress: (force?: boolean) => Promise<void>;
 
   // Cập nhật dữ liệu trực tiếp
@@ -18,73 +19,66 @@ interface StudentState {
   resetProgress: () => void;
 }
 
-export const useStudentStore = create<StudentState>((set, get) => ({
-  progress: null,
-  loading: false,
-  error: null,
+export const useStudentStore = create<StudentState>()(
+  persist(
+    (set, get) => ({
+      progress: null,
+      loading: false,
+      error: null,
 
-  setProgress: (data) => set({ progress: data }),
-  resetProgress: () => set({ progress: null, loading: false, error: null }),
+      setProgress: (data) => set({ progress: data }),
+      resetProgress: () => set({ progress: null, loading: false, error: null }),
 
-  fetchProgress: async (force = false) => {
-    // Nếu đã có dữ liệu trong Zustand và không yêu cầu làm mới (force = false), bỏ qua không gọi lại API
-    if (get().progress && !force) {
-      return;
-    }
-
-    // Nếu Auth đang trong quá trình khôi phục phiên (isInitializing = true),
-    // chờ cho đến khi nạp xong token và classroomId từ refreshToken
-    if (useAuthStore.getState().isInitializing) {
-      await new Promise<void>((resolve) => {
-        let count = 0;
-        const checkInit = () => {
-          count++;
-          if (!useAuthStore.getState().isInitializing || count > 30) {
-            resolve();
-          } else {
-            setTimeout(checkInit, 30);
-          }
-        };
-        checkInit();
-      });
-    }
-
-    try {
-      // Chỉ bật loading xoay xoay nếu chưa từng có dữ liệu trước đó
-      if (!get().progress) {
-        set({ loading: true });
-      }
-      set({ error: null });
-
-      const authState = useAuthStore.getState();
-      let targetClassroomId =
-        authState.classroomId || authState.user?.classroomId;
-
-      if (!targetClassroomId) {
-        const classrooms = await getClassList();
-        if (!classrooms || classrooms.length === 0) {
-          throw new Error("Chưa có lớp học nào trong hệ thống.");
+      fetchProgress: async (force = false) => {
+        // Nếu Auth vẫn đang trong quá trình khôi phục phiên, tạm dừng chờ
+        if (useAuthStore.getState().isInitializing) {
+          return;
         }
-        for (const cl of classrooms) {
-          try {
-            const data = await getMyProgress(cl.id);
+
+        try {
+          // Chỉ bật loading xoay tròn nếu TRƯỚC ĐÓ CHƯA TỪNG CÓ dữ liệu cache nào
+          if (!get().progress) {
+            set({ loading: true });
+          }
+          set({ error: null });
+
+          const authState = useAuthStore.getState();
+          const targetClassroomId =
+            authState.classroomId ||
+            authState.user?.classroomId ||
+            (authState.user?.classrooms && authState.user.classrooms.length > 0
+              ? authState.user.classrooms[0].id
+              : null);
+
+          if (!targetClassroomId) {
+            if (!authState.userId) {
+              set({ loading: false });
+              return;
+            }
+            throw new Error("Tài khoản của bạn hiện chưa được phân vào lớp học nào.");
+          }
+
+          // Gọi API cập nhật tiến độ mới nhất từ server
+          const data = await getMyProgress(targetClassroomId);
+          if (data) {
             set({ progress: data, loading: false });
-            return;
-          } catch {
-            continue;
           }
+        } catch (err: any) {
+          console.error("Lỗi tải tiến độ lớp học:", err);
+          set({
+            error: err.message || "Không thể kết nối đến máy chủ.",
+            loading: false,
+          });
         }
-        throw new Error("Tài khoản này hiện chưa được xếp vào lớp học nào.");
-      }
-
-      const data = await getMyProgress(targetClassroomId);
-      set({ progress: data, loading: false });
-    } catch (err: any) {
-      console.error("Lỗi tải tiến độ lớp học:", err);
-      set({
-        error: err.message || "Không thể kết nối đến máy chủ.",
-        loading: false,
-      });
+      },
+    }),
+    {
+      name: "student-progress-storage",
+      storage: createJSONStorage(() => localStorage),
+      // Chỉ lưu trữ dữ liệu progress bài tập, không lưu loading hay error
+      partialize: (state) => ({
+        progress: state.progress,
+      }),
     }
-  },
-}));
+  )
+);

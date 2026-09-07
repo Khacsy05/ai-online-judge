@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { jwtDecode } from "jwt-decode";
 import { disconnectSocket } from "@/lib/socket";
 
@@ -42,62 +43,9 @@ interface AuthStore {
     updateUserDetail: (name: string, email: string) => void;
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
-    accessToken: null,
-    user: null,
-    role: null,
-    userId: null,
-    fullname: null,
-    email: null,
-    classroomId: null,
-    isInitializing: true,
-    isLoggingOut: false,
-
-    setAuth: (accessToken: string, userDetail?: Partial<UserDetail>) => {
-        if (!accessToken || typeof accessToken !== "string") {
-            set({ isInitializing: false });
-            return;
-        }
-
-        try {
-            const decoded = jwtDecode<JwtPayload>(accessToken);
-            const classroomId = userDetail?.classroomId || decoded.classroomId || null;
-
-            const userObj: UserDetail = {
-                id: decoded.id,
-                fullname: userDetail?.fullname || decoded.name,
-                email: userDetail?.email || decoded.email,
-                role: decoded.role,
-                classroomId: classroomId,
-                classrooms: userDetail?.classrooms || [],
-            };
-
-            set({
-                accessToken: accessToken,
-                user: userObj,
-                role: decoded.role,
-                userId: decoded.id,
-                fullname: userObj.fullname,
-                email: userObj.email,
-                classroomId: classroomId,
-                isInitializing: false,
-            });
-        } catch (error) {
-            console.error("Lỗi giải mã JWT Access Token:", error);
-            set({ isInitializing: false });
-        }
-    },
-
-    logout: () => {
-        if (typeof window !== "undefined") {
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("current_user");
-            document.cookie = "access_token=; path=/; max-age=0";
-            document.cookie = "refreshToken=; path=/; max-age=0";
-            disconnectSocket();
-        }
-
-        set({
+export const useAuthStore = create<AuthStore>()(
+    persist(
+        (set) => ({
             accessToken: null,
             user: null,
             role: null,
@@ -105,19 +53,99 @@ export const useAuthStore = create<AuthStore>((set) => ({
             fullname: null,
             email: null,
             classroomId: null,
-            isInitializing: false,
-        });
-    },
+            isInitializing: true,
+            isLoggingOut: false,
 
-    setIsInitializing: (status: boolean) => set({ isInitializing: status }),
-    setIsLoggingOut: (status: boolean) => set({ isLoggingOut: status }),
+            setAuth: (accessToken: string, userDetail?: Partial<UserDetail>) => {
+                if (!accessToken || typeof accessToken !== "string") {
+                    set({ isInitializing: false });
+                    return;
+                }
 
-    updateUserDetail: (name: string, email: string) =>
-        set((state) => ({
-            fullname: name,
-            email: email,
-            user: state.user
-                ? { ...state.user, fullname: name, email }
-                : null,
-        })),
-}));
+                try {
+                    const decoded = jwtDecode<JwtPayload>(accessToken);
+                    const classroomId = userDetail?.classroomId || decoded.classroomId || null;
+
+                    const fullname =
+                        (userDetail as any)?.fullName ||
+                        (userDetail as any)?.name ||
+                        userDetail?.fullname ||
+                        decoded.name;
+
+                    const userObj: UserDetail = {
+                        id: decoded.id,
+                        fullname: fullname,
+                        email: userDetail?.email || decoded.email,
+                        role: decoded.role,
+                        classroomId: classroomId,
+                        classrooms: userDetail?.classrooms || [],
+                    };
+
+                    set({
+                        accessToken: accessToken,
+                        user: userObj,
+                        role: decoded.role,
+                        userId: decoded.id,
+                        fullname: fullname,
+                        email: userObj.email,
+                        classroomId: classroomId,
+                        isInitializing: false,
+                    });
+                } catch (error) {
+                    console.error("Lỗi giải mã JWT Access Token:", error);
+                    set({ isInitializing: false });
+                }
+            },
+
+            logout: () => {
+                if (typeof window !== "undefined") {
+                    localStorage.removeItem("student-progress-storage");
+                    disconnectSocket();
+                }
+
+                set({
+                    accessToken: null,
+                    user: null,
+                    role: null,
+                    userId: null,
+                    fullname: null,
+                    email: null,
+                    classroomId: null,
+                    isInitializing: false,
+                });
+            },
+
+            setIsInitializing: (status: boolean) => set({ isInitializing: status }),
+            setIsLoggingOut: (status: boolean) => set({ isLoggingOut: status }),
+
+            updateUserDetail: (name: string, email: string) =>
+                set((state) => ({
+                    fullname: name,
+                    email: email,
+                    user: state.user
+                        ? { ...state.user, fullname: name, email }
+                        : null,
+                })),
+        }),
+        {
+            name: "auth-storage",
+            storage: createJSONStorage(() => localStorage),
+            // Chỉ persist thông tin cần thiết, bỏ qua isInitializing & isLoggingOut
+            partialize: (state) => ({
+                accessToken: state.accessToken,
+                user: state.user,
+                role: state.role,
+                userId: state.userId,
+                fullname: state.fullname,
+                email: state.email,
+                classroomId: state.classroomId,
+            }),
+            onRehydrateStorage: () => (state) => {
+                if (state) {
+                    // Khi vừa nạp xong từ persist, đánh dấu sẵn sàng ngay
+                    state.setIsInitializing(false);
+                }
+            },
+        }
+    )
+);

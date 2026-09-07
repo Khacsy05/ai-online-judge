@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { LeaderboardResponse, LeaderboardStudent, PaginationMeta } from "@/types/classroom";
-import { getClassroomLeaderboard, getClassList } from "@/services/classroom.service";
+import { getClassroomLeaderboard } from "@/services/classroom.service";
 import { useAuthStore } from "./useAuthStore";
 
 interface CacheItem {
@@ -67,40 +67,18 @@ export const useLeaderboardStore = create<LeaderboardState>((set, get) => ({
   fetchLeaderboard: async (force = false) => {
     const { search, page, limit, pageCache } = get();
 
-    // 1. Chờ Auth nếu đang trong quá trình khôi phục phiên
+    // 1. Chờ Auth nếu đang trong quá trình khôi phục phiên (không cần polling vì có instant hydration)
     if (useAuthStore.getState().isInitializing) {
-      await new Promise<void>((resolve) => {
-        let count = 0;
-        const checkInit = () => {
-          count++;
-          if (!useAuthStore.getState().isInitializing || count > 30) {
-            resolve();
-          } else {
-            setTimeout(checkInit, 30);
-          }
-        };
-        checkInit();
-      });
+      return;
     }
 
     const authState = useAuthStore.getState();
-    let targetClassroomId =
+    const targetClassroomId =
       authState.classroomId ||
       authState.user?.classroomId ||
       (authState.user?.classrooms && authState.user.classrooms.length > 0
         ? authState.user.classrooms[0].id
         : null);
-
-    if (!targetClassroomId) {
-      try {
-        const classrooms = await getClassList();
-        if (classrooms && classrooms.length > 0) {
-          targetClassroomId = classrooms[0].id;
-        }
-      } catch (e) {
-        console.error("Lỗi lấy danh sách lớp học:", e);
-      }
-    }
 
     if (!targetClassroomId) {
       set({

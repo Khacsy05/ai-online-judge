@@ -121,9 +121,13 @@ export default function StudentDashboard() {
     }
   };
 
+  const isInitializing = useAuthStore((state) => state.isInitializing);
+
   useEffect(() => {
-    fetchProgress();
-  }, [fetchProgress]);
+    if (!isInitializing) {
+      fetchProgress();
+    }
+  }, [isInitializing, fetchProgress]);
 
   const assignments = data?.assignments || [];
 
@@ -135,7 +139,8 @@ export default function StudentDashboard() {
     [assignments, query]
   );
 
-  if (loading) {
+  // Chỉ hiển thị màn hình tải xoay tròn nếu CHƯA TỪNG CÓ dữ liệu cache nào
+  if (!data && (isInitializing || loading || !error)) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8 text-center">
         <div className="inline-flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 mb-4 shadow-sm animate-spin">
@@ -188,7 +193,7 @@ export default function StudentDashboard() {
           </span>
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-          Xin chào, {currentUser?.fullname || "Sinh viên 01"}
+          Xin chào, {currentUser?.fullname || (currentUser as any)?.name || "Sinh viên"}
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">
           Đây là toàn bộ bài tập và tiến độ điểm số được cập nhật trực tiếp từ hệ thống chấm điểm AI.

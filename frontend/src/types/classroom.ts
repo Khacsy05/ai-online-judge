@@ -38,6 +38,13 @@ export interface LeaderboardResponse {
     totalAssignments: number;
     maxClassScore: number;
     studentCount: number;
+    topStudent?: {
+        userId: string;
+        fullName: string;
+        studentCode: string;
+        email: string;
+        totalScore: number;
+    };
     leaderboard: LeaderboardStudent[];
     meta: PaginationMeta;
 }

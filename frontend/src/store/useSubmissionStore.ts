@@ -120,18 +120,7 @@ export const useSubmissionStore = create<SubmissionState>((set, get) => ({
 
     // 2. Chờ Auth nếu đang khôi phục phiên
     if (useAuthStore.getState().isInitializing) {
-      await new Promise<void>((resolve) => {
-        let count = 0;
-        const checkInit = () => {
-          count++;
-          if (!useAuthStore.getState().isInitializing || count > 30) {
-            resolve();
-          } else {
-            setTimeout(checkInit, 30);
-          }
-        };
-        checkInit();
-      });
+      return;
     }
 
     const authState = useAuthStore.getState();

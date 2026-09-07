@@ -43,6 +43,7 @@ export default function LeaderboardPage() {
 
   const currentUser = useAuthStore((state) => state.user);
   const currentUserId = useAuthStore((state) => state.userId);
+  const isInitializing = useAuthStore((state) => state.isInitializing);
 
   // Zustand Leaderboard Store
   const {
@@ -73,10 +74,12 @@ export default function LeaderboardPage() {
     }
   };
 
-  // 1. Tải bảng xếp hạng khi mount
+  // 1. Tải bảng xếp hạng khi Auth đã sẵn sàng
   useEffect(() => {
-    fetchLeaderboard(false);
-  }, [fetchLeaderboard]);
+    if (!isInitializing) {
+      fetchLeaderboard(false);
+    }
+  }, [fetchLeaderboard, isInitializing]);
 
   // 2. Debounce tìm kiếm 350ms
   useEffect(() => {
@@ -130,7 +133,7 @@ export default function LeaderboardPage() {
   };
 
   // Màn hình Loading lần đầu tiên
-  if (loading && !data) {
+  if (isInitializing || (loading && !data) || (!data && !error)) {
     return (
       <div className="flex h-[75vh] flex-col items-center justify-center gap-3">
         <Loader2 className="size-10 animate-spin text-blue-600" />

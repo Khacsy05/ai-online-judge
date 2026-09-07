@@ -11,7 +11,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const setIsInitializing = useAuthStore((state) => state.setIsInitializing);
     const userId = useAuthStore((state) => state.userId);
 
-    // Tự động kết nối Socket ngay khi có userId (vừa đăng nhập hoặc vừa khôi phục phiên)
     useEffect(() => {
         if (userId) {
             getSocket(userId);
