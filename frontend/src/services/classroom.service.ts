@@ -18,8 +18,10 @@ export async function getMyProgress(classroomId: string) {
   try {
     const response = await apiClient.get(`/classrooms/${classroomId}/my-progress`);
     return response.data;
-  } catch (error) {
-    console.error('Lỗi khi lấy tiến độ của tôi:', error);
+  } catch (error: any) {
+    if (error.response?.status !== 403) {
+      console.error('Lỗi khi lấy tiến độ của tôi:', error);
+    }
     throw error;
   }
 }

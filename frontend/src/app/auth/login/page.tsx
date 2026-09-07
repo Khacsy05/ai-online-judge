@@ -174,13 +174,6 @@ function LoginForm() {
             >
               Giảng viên
             </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin("admin@gmail.com")}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 cursor-pointer text-center transition-colors"
-            >
-              Quản trị viên
-            </button>
           </div>
         </div>
       </div>

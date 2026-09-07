@@ -7,12 +7,9 @@ const apiClient = axios.create({
     withCredentials: true,
 });
 
-// 1. Đính Access Token từ Zustand RAM hoặc LocalStorage vào Header
+// 1. Đính Access Token từ Zustand RAM vào Header
 apiClient.interceptors.request.use((config) => {
-    let token = useAuthStore.getState().accessToken;
-    if (!token && typeof window !== 'undefined') {
-        token = localStorage.getItem('access_token');
-    }
+    const token = useAuthStore.getState().accessToken;
     if (token && token !== 'undefined' && token !== 'null') {
         config.headers.Authorization = `Bearer ${token}`;
     }

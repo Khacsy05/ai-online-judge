@@ -140,6 +140,7 @@ function getPaginationRange(currentPage: number, totalPages: number): (number | 
 export default function SubmissionsPage() {
   const userId = useAuthStore((state) => state.userId);
   const user = useAuthStore((state) => state.user);
+  const isInitializing = useAuthStore((state) => state.isInitializing);
 
   // Ref đỉnh trang phục vụ cuộn mượt khi phân trang
   const topRef = useRef<HTMLDivElement>(null);
@@ -186,11 +187,12 @@ export default function SubmissionsPage() {
     }
   };
 
-  // 1. Tải danh sách bài nộp khi mount hoặc khi userId sẵn sàng
-  // Nếu đã có trong Zustand pageCache (ví dụ chuyển tab qua lại), sẽ lấy ngay từ cache mà không gọi API
+  // 1. Tải danh sách bài nộp khi Auth đã sẵn sàng và có userId
   useEffect(() => {
-    fetchSubmissions(false);
-  }, [fetchSubmissions, userId, user?.id]);
+    if (!isInitializing && (userId || user?.id)) {
+      fetchSubmissions(false);
+    }
+  }, [fetchSubmissions, isInitializing, userId, user?.id]);
 
   // 2. Debounce tìm kiếm 350ms
   useEffect(() => {
@@ -278,13 +280,18 @@ export default function SubmissionsPage() {
     avgScore: "0.0",
   };
 
-  // Chỉ hiển thị loader toàn màn hình trong lần đầu tiên truy cập chưa có dữ liệu nào
-  if (loading && submissions.length === 0) {
+  // Hiển thị màn hình tải dữ liệu khi đang khôi phục Auth hoặc đang nạp dữ liệu lần đầu
+  if (isInitializing || (loading && submissions.length === 0) || (submissions.length === 0 && !error && meta.total === 0 && loading)) {
     return (
-      <div className="flex h-[75vh] flex-col items-center justify-center gap-3">
-        <Loader2 className="size-10 animate-spin text-blue-600" />
-        <p className="text-sm font-medium text-slate-500">
-          Đang tải lịch sử nộp bài...
+      <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8 text-center">
+        <div className="inline-flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 mb-4 shadow-sm animate-spin">
+          <Loader2 size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-slate-800">
+          Đang tải dữ liệu từ máy chủ...
+        </h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Vui lòng đợi trong giây lát khi hệ thống tổng hợp lịch sử nộp bài.
         </p>
       </div>
     );

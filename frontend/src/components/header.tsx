@@ -5,6 +5,9 @@ import { Menu, LogOut, User } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { logoutUser } from "@/services/auth.service";
 
+import { usePathname } from "next/navigation";
+import { useStudentStore } from "@/store/useStudentStore";
+
 interface HeaderProps {
   onOpenMenu: () => void;
   classroomName?: string;
@@ -14,12 +17,28 @@ interface HeaderProps {
 
 export function Header({
   onOpenMenu,
-  classroomName = "Lập trình nâng cao",
+  classroomName: propClassroomName,
   studentName,
   studentRole,
 }: HeaderProps) {
+  const pathname = usePathname();
   const storeUser = useAuthStore((state) => state.user);
-  const displayName = studentName || storeUser?.fullname || "Người dùng";
+  const isInitializing = useAuthStore((state) => state.isInitializing);
+  const progress = useStudentStore((state) => state.progress);
+
+  const isAdminArea = pathname.startsWith("/admin");
+
+  // Lấy tên lớp học linh hoạt: prop truyền vào -> progress -> lớp đầu tiên trong user -> fallback
+  const classroomName =
+    propClassroomName ||
+    progress?.classroomName ||
+    storeUser?.classrooms?.[0]?.name ||
+    "";
+
+  // Lấy tên người dùng: prop -> storeUser -> fallback
+  const rawDisplayName = studentName || storeUser?.fullname || (storeUser as any)?.name;
+  const displayName = rawDisplayName || (isInitializing ? "" : "Người dùng");
+
   const displayRole =
     studentRole ||
     (storeUser?.role === "ADMIN"
@@ -29,10 +48,11 @@ export function Header({
       : "Sinh viên");
 
   // Chữ cái đầu tiên đại diện avatar
-  const initials = displayName
-    ? displayName
+  const initials = rawDisplayName
+    ? rawDisplayName
         .split(" ")
-        .map((n) => n[0])
+        .filter(Boolean)
+        .map((n: string) => n[0])
         .slice(-2)
         .join("")
         .toUpperCase()
@@ -49,19 +69,41 @@ export function Header({
       </button>
 
       <div className="hidden text-sm text-slate-400 sm:block">
-        Lớp học / <span className="text-slate-700 font-semibold">{classroomName}</span>
+        {isAdminArea ? (
+          <>
+            Quản trị / <span className="text-slate-700 font-semibold">Hệ thống CodeLab</span>
+          </>
+        ) : (
+          <>
+            Lớp học /{" "}
+            {classroomName ? (
+              <span className="text-slate-700 font-semibold">{classroomName}</span>
+            ) : (
+              <span className="inline-block h-4 w-32 align-middle bg-slate-200 animate-pulse rounded" />
+            )}
+          </>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-4">
         {/* Thông tin tài khoản */}
         <div className="flex items-center gap-2.5">
-          <div className="flex size-9 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700 shadow-xs border border-blue-200">
-            {initials}
-          </div>
+          {rawDisplayName ? (
+            <div className="flex size-9 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700 shadow-xs border border-blue-200">
+              {initials}
+            </div>
+          ) : (
+            <div className="size-9 rounded-full bg-slate-200 animate-pulse" />
+          )}
+
           <div className="hidden sm:block text-left">
-            <p className="text-sm font-semibold text-slate-900 leading-tight">
-              {displayName}
-            </p>
+            {rawDisplayName ? (
+              <p className="text-sm font-semibold text-slate-900 leading-tight">
+                {displayName}
+              </p>
+            ) : (
+              <div className="h-4 w-24 bg-slate-200 animate-pulse rounded mb-1" />
+            )}
             <p className="text-[11px] font-medium text-slate-400">
               {displayRole}
             </p>
