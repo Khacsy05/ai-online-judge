@@ -1,1 +1,5 @@
-export class CreateClassroomDto {}
+export class CreateClassroomDto {
+  code: string;
+  name: string;
+}
+

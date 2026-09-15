@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { ProblemsService } from './problems.service';
 import { CreateProblemDto } from './dto/create-problem.dto';
 import { UpdateProblemDto } from './dto/update-problem.dto';
+import { QueryProblemsDto } from './dto/query-problems.dto';
 
 @Controller('problems')
 export class ProblemsController {
@@ -13,22 +14,22 @@ export class ProblemsController {
   }
 
   @Get()
-  findAll() {
-    return this.problemsService.findAll();
+  findAll(@Query() query: QueryProblemsDto) {
+    return this.problemsService.findAll(query);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.problemsService.findOne(+id);
+    return this.problemsService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateProblemDto: UpdateProblemDto) {
-    return this.problemsService.update(+id, updateProblemDto);
+    return this.problemsService.update(id, updateProblemDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.problemsService.remove(+id);
+    return this.problemsService.remove(id);
   }
 }

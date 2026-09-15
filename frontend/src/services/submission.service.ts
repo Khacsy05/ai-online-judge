@@ -54,10 +54,24 @@ export async function getSubmissionById(
   return response.data;
 }
 
+/**
+ * Hủy bài nộp khi đang ở hàng đợi hoặc đang chấm
+ * @param id ID của bài nộp
+ */
+export async function cancelSubmission(
+  id: string
+): Promise<{ message: string; status: string }> {
+  const response = await apiClient.post<{ message: string; status: string }>(
+    `/submissions/${id}/cancel`
+  );
+  return response.data;
+}
+
 export const submissionService = {
   submitCode,
   getSubmissions,
   getSubmissionById,
+  cancelSubmission,
 };
 
-export default submissionService;
+export default submissionService;

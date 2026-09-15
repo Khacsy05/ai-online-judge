@@ -6,6 +6,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { SubmissionsProcessor } from './submissions.processor';
 import { AiModule } from '../ai/ai.module';
 import { SubmissionsGateway } from './submissions.gateway';
+import { Judge0Service } from './judge0.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { SubmissionsGateway } from './submissions.gateway';
     }),
   ],
   controllers: [SubmissionsController],
-  providers: [SubmissionsService, SubmissionsProcessor, SubmissionsGateway],
-  exports: [SubmissionsService, SubmissionsGateway],
+  providers: [SubmissionsService, SubmissionsProcessor, SubmissionsGateway, Judge0Service],
+  exports: [SubmissionsService, SubmissionsGateway, Judge0Service],
 })
 export class SubmissionsModule { }

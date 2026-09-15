@@ -50,4 +50,12 @@ export class SubmissionsController {
   async findOne(@Param('id') id: string) {
     return this.submissionsService.findOne(id);
   }
+
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('STUDENT')
+  async cancel(@Param('id') id: string, @Req() req: any) {
+    return this.submissionsService.cancel(id, req.user.id);
+  }
 }
+

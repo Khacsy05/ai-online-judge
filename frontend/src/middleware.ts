@@ -33,6 +33,19 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/register");
 
+  // 0. Khi truy cập trang chủ root "/"
+  if (pathname === "/") {
+    if (!token) {
+      return NextResponse.redirect(new URL("/auth/login", request.url));
+    }
+    if (role === "ADMIN") {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    } else if (role === "LECTURER") {
+      return NextResponse.redirect(new URL("/lecturer", request.url));
+    }
+    return NextResponse.redirect(new URL("/student", request.url));
+  }
+
   // 1. Chưa đăng nhập mà truy cập trang bảo vệ -> Chuyển sang /auth/login
   if (!token && isProtectedPath) {
     const loginUrl = new URL("/auth/login", request.url);
@@ -63,6 +76,11 @@ export function middleware(request: NextRequest) {
     if (role === "LECTURER" && isAdminPath) {
       return NextResponse.redirect(new URL("/lecturer", request.url));
     }
+
+    // Quản trị viên (Admin) / Giảng viên cố tình vào trang sinh viên -> Đẩy về /admin
+    if (role === "ADMIN" && isStudentPath) {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
   }
 
   return NextResponse.next();
@@ -70,6 +88,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
     "/student/:path*",
     "/admin/:path*",
     "/lecturer/:path*",

@@ -299,4 +299,49 @@ export class SubmissionsService {
       details: sanitizedDetails,
     };
   }
+
+  async cancel(id: string, userId: string) {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id },
+    });
+
+    if (!submission) {
+      throw new NotFoundException('Không tìm thấy bài nộp.');
+    }
+
+    if (submission.userId !== userId) {
+      throw new BadRequestException('Bạn không có quyền hủy bài nộp này.');
+    }
+
+    // Chỉ hủy khi bài nộp đang chờ hoặc đang chấm
+    if (submission.status !== JudgeStatus.PENDING && submission.status !== JudgeStatus.RUNNING) {
+      return {
+        message: 'Bài nộp đã hoàn tất hoặc đã được hủy trước đó.',
+        status: submission.status,
+      };
+    }
+
+    // Cập nhật trạng thái thành CANCELLED trong DB
+    const updated = await this.prisma.submission.update({
+      where: { id },
+      data: { status: JudgeStatus.CANCELLED },
+    });
+
+    // Thử xóa job trong queue nếu chưa chạy xong
+    try {
+      const jobs = await this.judgingQueue.getJobs(['waiting', 'delayed', 'active']);
+      const targetJob = jobs.find((j) => j.data?.submissionId === id);
+      if (targetJob) {
+        await targetJob.remove();
+      }
+    } catch (e) {
+      console.warn(`[BullMQ] Không thể xóa job từ queue: ${e.message}`);
+    }
+
+    return {
+      message: 'Hủy chấm bài thành công.',
+      status: updated.status,
+    };
+  }
 }
+

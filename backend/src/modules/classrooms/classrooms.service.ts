@@ -1,6 +1,7 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
+import { AssignStudentsDto } from './dto/assign-students.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Role, JudgeStatus } from '@prisma/client';
 import { QueryClassroomsDto } from './dto/query-classrooms.dto';
@@ -9,27 +10,338 @@ import { QueryClassroomsDto } from './dto/query-classrooms.dto';
 export class ClassroomsService {
   constructor(private readonly prisma: PrismaService) { }
 
-  create(createClassroomDto: CreateClassroomDto) {
-    return 'This action adds a new classroom';
+  async create(createClassroomDto: CreateClassroomDto) {
+    const { code, name } = createClassroomDto;
+    if (!code || !name) {
+      throw new BadRequestException('Vui lòng cung cấp đầy đủ mã lớp và tên môn học.');
+    }
+
+    const normalizedCode = code.trim().toUpperCase();
+    const existing = await this.prisma.classroom.findUnique({
+      where: { code: normalizedCode },
+    });
+
+    if (existing) {
+      throw new BadRequestException(`Mã lớp "${normalizedCode}" đã tồn tại trên hệ thống.`);
+    }
+
+    return this.prisma.classroom.create({
+      data: {
+        code: normalizedCode,
+        name: name.trim(),
+      },
+    });
   }
 
   findAll() {
-    return this.prisma.classroom.findMany();
+    return this.prisma.classroom.findMany({
+      include: {
+        _count: {
+          select: {
+            members: true,
+            assignments: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
   }
 
-  findOne(id: string) {
-    return this.prisma.classroom.findUnique({
+  async findOne(id: string) {
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            members: true,
+            assignments: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                studentCode: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+        assignments: {
+          include: {
+            problem: {
+              select: {
+                id: true,
+                title: true,
+                timeLimitMs: true,
+                memoryLimitMb: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!classroom) {
+      throw new NotFoundException(`Không tìm thấy lớp học với ID: "${id}"`);
+    }
+
+    return classroom;
+  }
+
+  async update(id: string, updateClassroomDto: UpdateClassroomDto) {
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id },
+    });
+    if (!classroom) {
+      throw new NotFoundException(`Không tìm thấy lớp học với ID: "${id}"`);
+    }
+
+    const dataToUpdate: any = {};
+    if (updateClassroomDto.name) {
+      dataToUpdate.name = updateClassroomDto.name.trim();
+    }
+    if (updateClassroomDto.code) {
+      const normalizedCode = updateClassroomDto.code.trim().toUpperCase();
+      if (normalizedCode !== classroom.code) {
+        const existing = await this.prisma.classroom.findUnique({
+          where: { code: normalizedCode },
+        });
+        if (existing) {
+          throw new BadRequestException(`Mã lớp "${normalizedCode}" đã tồn tại trên hệ thống.`);
+        }
+      }
+      dataToUpdate.code = normalizedCode;
+    }
+
+    return this.prisma.classroom.update({
+      where: { id },
+      data: dataToUpdate,
+    });
+  }
+
+  async remove(id: string) {
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+    });
+
+    if (!classroom) {
+      throw new NotFoundException(`Không tìm thấy lớp học với ID: "${id}"`);
+    }
+
+    // ❌ Chặn không cho xóa nếu lớp đã có sinh viên
+    if ((classroom._count?.members || 0) > 0) {
+      throw new BadRequestException(
+        `Không thể xóa lớp học "${classroom.name}" vì lớp đang có ${classroom._count.members} sinh viên tham gia. Vui lòng chuyển hoặc xóa sinh viên trước!`
+      );
+    }
+
+    return this.prisma.classroom.delete({
       where: { id },
     });
   }
 
-  update(id: string, updateClassroomDto: UpdateClassroomDto) {
-    return `This action updates a #${id} classroom`;
+  /**
+   * Phân công sinh viên vào lớp học
+   */
+  async assignStudents(classroomId: string, dto: AssignStudentsDto) {
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id: classroomId },
+    });
+    if (!classroom) {
+      throw new NotFoundException(`Không tìm thấy lớp học với ID: "${classroomId}"`);
+    }
+
+    // 1. Tập hợp danh sách User ID cần thêm
+    const userIdsToAdd = new Set<string>();
+
+    if (dto.studentId) {
+      userIdsToAdd.add(dto.studentId);
+    }
+    if (dto.studentIds && Array.isArray(dto.studentIds)) {
+      dto.studentIds.forEach((id) => userIdsToAdd.add(id));
+    }
+
+    // 2. Nếu truyền studentCodes, tìm User ID tương ứng
+    if (dto.studentCodes && Array.isArray(dto.studentCodes) && dto.studentCodes.length > 0) {
+      const usersByCode = await this.prisma.user.findMany({
+        where: {
+          studentCode: { in: dto.studentCodes },
+          role: Role.STUDENT,
+        },
+        select: { id: true },
+      });
+      usersByCode.forEach((u) => userIdsToAdd.add(u.id));
+    }
+
+    if (userIdsToAdd.size === 0) {
+      throw new BadRequestException('Vui lòng cung cấp ít nhất một mã sinh viên (studentCode) hoặc ID sinh viên (studentId).');
+    }
+
+    // 3. Lấy danh sách thành viên ĐÃ CÓ LỚP trong toàn hệ thống (ở lớp này hoặc lớp khác)
+    const existingMembers = await this.prisma.classroomMember.findMany({
+      where: {
+        userId: { in: Array.from(userIdsToAdd) },
+      },
+      include: {
+        classroom: {
+          select: { name: true, code: true },
+        },
+        user: {
+          select: { fullName: true, studentCode: true },
+        },
+      },
+    });
+
+    // Nếu có sinh viên đã thuộc lớp khác, thông báo cụ thể
+    const inOtherClass = existingMembers.filter((m) => m.classroomId !== classroomId);
+    if (inOtherClass.length > 0) {
+      const names = inOtherClass
+        .map((m) => `${m.user.fullName} (${m.user.studentCode || 'MSSV'}) đang ở lớp "${m.classroom.name}"`)
+        .join(', ');
+      throw new BadRequestException(
+        `Không thể thêm! Các sinh viên sau đã có lớp học khác: ${names}. Mỗi sinh viên chỉ được tham gia 1 lớp học!`
+      );
+    }
+
+    const inThisClassUserIds = new Set(
+      existingMembers.filter((m) => m.classroomId === classroomId).map((m) => m.userId)
+    );
+
+    // Lọc ra các sinh viên thực sự chưa có trong lớp này
+    const newMembersData = Array.from(userIdsToAdd)
+      .filter((uid) => !inThisClassUserIds.has(uid))
+      .map((uid) => ({
+        classroomId,
+        userId: uid,
+      }));
+
+    if (newMembersData.length === 0) {
+      return {
+        message: 'Tất cả sinh viên được chỉ định đã có sẵn trong lớp học này.',
+        addedCount: 0,
+      };
+    }
+
+    // 4. Thêm hàng loạt vào ClassroomMember
+    await this.prisma.classroomMember.createMany({
+      data: newMembersData,
+      skipDuplicates: true,
+    });
+
+    return {
+      message: `Đã phân công thành công ${newMembersData.length} sinh viên vào lớp "${classroom.name}".`,
+      addedCount: newMembersData.length,
+      alreadyExistedCount: inThisClassUserIds.size,
+    };
   }
 
-  remove(id: string) {
-    return this.prisma.classroom.delete({
-      where: { id },
+  /**
+   * Xóa một sinh viên khỏi lớp học
+   */
+  async removeStudentFromClass(classroomId: string, userId: string) {
+    const member = await this.prisma.classroomMember.findUnique({
+      where: {
+        userId_classroomId: {
+          userId,
+          classroomId,
+        },
+      },
+    });
+
+    if (!member) {
+      throw new NotFoundException('Sinh viên này không thuộc lớp học được chỉ định.');
+    }
+
+    await this.prisma.classroomMember.delete({
+      where: {
+        userId_classroomId: {
+          userId,
+          classroomId,
+        },
+      },
+    });
+
+    return {
+      message: 'Đã xóa sinh viên khỏi lớp học thành công.',
+    };
+  }
+
+  /**
+   * Xóa nhiều sinh viên khỏi lớp học cùng lúc
+   */
+  async removeStudentsFromClass(classroomId: string, userIds: string[]) {
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      throw new BadRequestException('Vui lòng cung cấp danh sách sinh viên cần xóa.');
+    }
+
+    const res = await this.prisma.classroomMember.deleteMany({
+      where: {
+        classroomId,
+        userId: { in: userIds },
+      },
+    });
+
+    return {
+      message: `Đã xóa thành công ${res.count} sinh viên khỏi lớp học.`,
+      deletedCount: res.count,
+    };
+  }
+
+  /**
+   * Lấy danh sách các sinh viên CHƯA tham gia vào BẤT KỲ lớp học nào
+   * (Để hiển thị checkbox chọn thêm vào lớp)
+   */
+  async getAvailableStudents(classroomId: string, search?: string) {
+    // 1. Lấy danh sách tất cả sinh viên ĐÃ CÓ LỚP trong toàn hệ thống
+    const allEnrolledMembers = await this.prisma.classroomMember.findMany({
+      select: { userId: true },
+    });
+    const enrolledUserIds = allEnrolledMembers.map((m) => m.userId);
+
+    // 2. Chỉ tìm những sinh viên CHƯA THUỘC BẤT KỲ LỚP NÀO
+    const whereCondition: any = {
+      role: Role.STUDENT,
+      id: { notIn: enrolledUserIds },
+    };
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      whereCondition.OR = [
+        { fullName: { contains: q } },
+        { studentCode: { contains: q } },
+        { email: { contains: q } },
+      ];
+    }
+
+    return this.prisma.user.findMany({
+      where: whereCondition,
+      select: {
+        id: true,
+        fullName: true,
+        studentCode: true,
+        email: true,
+      },
+      orderBy: [
+        { studentCode: 'asc' },
+        { fullName: 'asc' },
+      ],
+      take: 100, // Lấy tối đa 100 SV mỗi lần để tối ưu tốc độ
     });
   }
 

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Quer
 import { ClassroomsService } from './classrooms.service';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
+import { AssignStudentsDto } from './dto/assign-students.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { QueryClassroomsDto } from './dto/query-classrooms.dto';
 
@@ -32,6 +33,38 @@ export class ClassroomsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.classroomsService.remove(id);
+  }
+
+  @Get(':id/available-students')
+  getAvailableStudents(
+    @Param('id') id: string,
+    @Query('search') search?: string,
+  ) {
+    return this.classroomsService.getAvailableStudents(id, search);
+  }
+
+  @Post(':id/assign-students')
+  assignStudents(
+    @Param('id') id: string,
+    @Body() assignStudentsDto: AssignStudentsDto,
+  ) {
+    return this.classroomsService.assignStudents(id, assignStudentsDto);
+  }
+
+  @Delete(':id/students')
+  removeStudentsFromClass(
+    @Param('id') id: string,
+    @Body('userIds') userIds: string[],
+  ) {
+    return this.classroomsService.removeStudentsFromClass(id, userIds);
+  }
+
+  @Delete(':id/students/:userId')
+  removeStudentFromClass(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.classroomsService.removeStudentFromClass(id, userId);
   }
 
   @Get(':id/leaderboard')

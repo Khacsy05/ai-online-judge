@@ -9,6 +9,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClassroomsModule } from './modules/classrooms/classrooms.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { ProblemsModule } from './modules/problems/problems.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { ClassroomsModule } from './modules/classrooms/classrooms.module';
       },
     }),
     ClassroomsModule,
+    AdminModule,
+    ProblemsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

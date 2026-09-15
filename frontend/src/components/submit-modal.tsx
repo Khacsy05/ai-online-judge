@@ -18,7 +18,7 @@ import {
   Cpu,
 } from "lucide-react";
 import { Assignment } from "@/types";
-import { submitCode, getSubmissionById } from "@/services/submission.service";
+import { submitCode, getSubmissionById, cancelSubmission } from "@/services/submission.service";
 import {
   Submission,
   GradingFinishedEvent,
@@ -266,6 +266,24 @@ export function SubmitModal({
     }
   };
 
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelGrading = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    try {
+      if (currentSubmission?.id) {
+        await cancelSubmission(currentSubmission.id);
+        useSubmissionStore.getState().invalidateCache();
+      }
+    } catch (e) {
+      console.warn("Lỗi khi gửi yêu cầu hủy chấm:", e);
+    } finally {
+      setIsCancelling(false);
+      handleResetForRetry();
+    }
+  };
+
   const statusConfig = gradingResult
     ? statusConfigMap[gradingResult.status] || {
         text: gradingResult.status,
@@ -285,29 +303,27 @@ export function SubmitModal({
         className="w-full max-w-xl rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200"
       >
         {/* Header Modal */}
-        <div className="flex items-start justify-between border-b border-slate-100 p-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-100">
-                Nộp bài giải
-              </span>
-              <span className="text-xs text-slate-400">
-                Điểm tối đa: {assignment.maxPossibleScore}đ
-              </span>
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <FileCode2 size={18} />
             </div>
-            <h2 className="mt-2 text-xl font-bold text-slate-900">
-              {assignment.problemTitle}
-            </h2>
+            <div>
+              <h2 className="text-sm font-bold text-slate-800">
+                Nộp bài: {assignment.problemTitle}
+              </h2>
+              <p className="text-xs text-slate-400">
+                Tối đa: {assignment.maxPossibleScore} điểm
+              </p>
+            </div>
           </div>
-          {step !== "GRADING" && (
-            <button
-              aria-label="Đóng"
-              onClick={onClose}
-              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 cursor-pointer transition-colors"
-            >
-              <X size={18} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={step === "GRADING" ? handleCancelGrading : onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer transition-colors"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* BƯỚC 1: CHỌN VÀ TẢI FILE CODE */}
@@ -418,6 +434,28 @@ export function SubmitModal({
               <Loader2 size={12} className="animate-spin text-blue-600" />
               <span>Đang kết nối hàng đợi chấm...</span>
             </div>
+
+            {/* Nút Hủy Chấm Bài */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleCancelGrading}
+                disabled={isCancelling}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 px-4 py-2 text-xs font-semibold text-rose-600 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Đang dừng...</span>
+                  </>
+                ) : (
+                  <>
+                    <X size={14} />
+                    <span>Hủy chấm bài</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 
@@ -484,9 +522,9 @@ export function SubmitModal({
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-700 mb-1.5">
                   <Sparkles size={14} className="text-blue-600" /> Nhận xét từ AI Chấm Điểm
                 </div>
-                <p className="text-xs leading-relaxed text-slate-700 font-sans whitespace-pre-wrap">
+                <div className="max-h-32 overflow-y-auto pr-1 text-xs leading-relaxed text-slate-700 font-sans whitespace-pre-wrap">
                   {gradingResult.feedback}
-                </p>
+                </div>
               </div>
             )}
 
