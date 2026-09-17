@@ -13,6 +13,10 @@ export class QuerySubmissionsDto {
 
   @IsOptional()
   @IsString()
+  classroomId?: string;
+
+  @IsOptional()
+  @IsString()
   search?: string;
 
   @IsOptional()

@@ -26,39 +26,20 @@ import { getClassList, ClassroomItem } from "@/services/classroom.service";
 import { getSubmissions } from "@/services/submission.service";
 import { SubmissionListItem } from "@/types/submission";
 
+import { useAdminStore } from "@/store/useAdminStore";
+
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState<AdminStatsResponse | null>(null);
-  const [classrooms, setClassrooms] = useState<ClassroomItem[]>([]);
-  const [recentSubmissions, setRecentSubmissions] = useState<SubmissionListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { dashboard, loadingDashboard, refreshingDashboard, fetchDashboard } = useAdminStore();
+  const { stats, classrooms, recentSubmissions } = dashboard;
   const [searchClass, setSearchClass] = useState("");
 
   const loadData = async (isManualRefresh = false) => {
-    try {
-      if (isManualRefresh) setRefreshing(true);
-      else setLoading(true);
-
-      const [statsData, classData, subData] = await Promise.all([
-        getAdminStats(),
-        getClassList(),
-        getSubmissions({ limit: 6 }),
-      ]);
-
-      setStats(statsData);
-      setClassrooms(Array.isArray(classData) ? classData : []);
-      setRecentSubmissions(subData.data || []);
-    } catch (error) {
-      console.error("Lỗi nạp dữ liệu Admin:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    await fetchDashboard(isManualRefresh);
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchDashboard(false);
+  }, [fetchDashboard]);
 
   const filteredClassrooms = classrooms.filter(
     (c) =>
@@ -119,14 +100,14 @@ export default function AdminDashboardPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => loadData(true)}
-            disabled={refreshing}
+            disabled={refreshingDashboard}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-60"
           >
             <RefreshCw
               size={14}
-              className={refreshing ? "animate-spin text-blue-600" : ""}
+              className={refreshingDashboard ? "animate-spin text-blue-600" : ""}
             />
-            <span>{refreshing ? "Đang đồng bộ..." : "Đồng bộ số liệu"}</span>
+            <span>{refreshingDashboard ? "Đang đồng bộ..." : "Đồng bộ số liệu"}</span>
           </button>
         </div>
       </div>
@@ -145,7 +126,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold tracking-tight text-slate-900">
-              {loading ? "..." : stats?.totalClassrooms ?? 0}
+              {loadingDashboard ? "..." : stats?.totalClassrooms ?? 0}
             </span>
             <span className="text-xs text-slate-500 font-medium">lớp quản lý</span>
           </div>
@@ -166,7 +147,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold tracking-tight text-slate-900">
-              {loading ? "..." : stats?.totalProblems ?? 0}
+              {loadingDashboard ? "..." : stats?.totalProblems ?? 0}
             </span>
             <span className="text-xs text-slate-500 font-medium">đề bài</span>
           </div>
@@ -187,7 +168,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold tracking-tight text-slate-900">
-              {loading ? "..." : (stats?.totalStudents ?? 0) + (stats?.totalAdmins ?? 0)}
+              {loadingDashboard ? "..." : (stats?.totalStudents ?? 0) + (stats?.totalAdmins ?? 0)}
             </span>
             <span className="text-xs text-slate-500 font-medium">tài khoản</span>
           </div>
@@ -209,7 +190,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold tracking-tight text-slate-900">
-              {loading ? "..." : stats?.totalSubmissions ?? 0}
+              {loadingDashboard ? "..." : stats?.totalSubmissions ?? 0}
             </span>
             <span className="text-xs text-slate-500 font-medium">lần nộp</span>
           </div>
@@ -264,7 +245,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-600">
-                  {loading ? (
+                  {loadingDashboard && filteredClassrooms.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-slate-400">
                         Đang tải danh sách lớp học...
@@ -351,7 +332,7 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="space-y-3">
-              {loading ? (
+              {loadingDashboard && recentSubmissions.length === 0 ? (
                 <p className="text-center text-xs text-slate-400 py-4">Đang nạp bài nộp...</p>
               ) : recentSubmissions.length === 0 ? (
                 <p className="text-center text-xs text-slate-400 py-4">Chưa có bài nộp nào.</p>

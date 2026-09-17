@@ -25,6 +25,7 @@ export interface SubmitCodePayload {
 export interface SubmissionQuery {
   userId?: string;
   assignmentId?: string;
+  classroomId?: string;
   search?: string;
   status?: string;
   language?: string;
@@ -75,6 +76,12 @@ export interface SubmissionListItem extends Submission {
   };
   assignment: {
     id: string;
+    classroomId?: string;
+    classroom?: {
+      id: string;
+      code: string;
+      name: string;
+    };
     problem: {
       id: string;
       title: string;

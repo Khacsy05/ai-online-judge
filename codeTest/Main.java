@@ -1,12 +1,14 @@
+import java.math.BigInteger;
 import java.util.Scanner;
 
 public class Main {
-    public static long fibonacci(int n) {
-        if (n <= 0) return 0;
-        if (n == 1) return 1;
-        long a = 0, b = 1;
+    public static BigInteger fibonacci(int n) {
+        if (n <= 0) return BigInteger.ZERO;
+        if (n == 1) return BigInteger.ONE;
+        BigInteger a = BigInteger.ZERO;
+        BigInteger b = BigInteger.ONE;
         for (int i = 2; i <= n; i++) {
-            long temp = a + b;
+            BigInteger temp = a.add(b);
             a = b;
             b = temp;
         }

@@ -109,7 +109,7 @@ export class SubmissionsService {
   }
 
   async findAll(query: QuerySubmissionsDto) {
-    const { userId, assignmentId, search, status, language } = query;
+    const { userId, assignmentId, classroomId, search, status, language } = query;
     const page = Number(query.page) > 0 ? Number(query.page) : 1;
     const limit = Number(query.limit) > 0 ? Number(query.limit) : 10;
     const skip = (page - 1) * limit;
@@ -122,6 +122,13 @@ export class SubmissionsService {
 
     if (assignmentId) {
       where.assignmentId = assignmentId;
+    }
+
+    if (classroomId && classroomId !== 'ALL') {
+      where.assignment = {
+        ...(where.assignment as any),
+        classroomId,
+      };
     }
 
     if (status && (status as any) !== 'ALL') {
@@ -179,6 +186,14 @@ export class SubmissionsService {
           assignment: {
             select: {
               id: true,
+              classroomId: true,
+              classroom: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                },
+              },
               problem: {
                 select: {
                   id: true,

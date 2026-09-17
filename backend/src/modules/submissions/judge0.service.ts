@@ -79,31 +79,32 @@ export class Judge0Service {
   ): Promise<Judge0SubmissionResult> {
     const cpuTimeLimitSec = Math.max(1, Math.ceil(timeLimitMs / 1000));
     const isJava = languageId === 62;
-    // Cấp 512MB cho JVM sandbox để tránh lỗi 422 Unprocessable Entity
-    const actualMemoryLimitMb = isJava ? Math.min(512, Math.max(256, memoryLimitMb)) : memoryLimitMb;
+    // Judge0 mặc định giới hạn tối đa 512000 KB (~500MB). Cấp đúng 500MB cho Java để JVM khởi chạy an toàn
+    const actualMemoryLimitMb = isJava ? 500 : memoryLimitMb;
     const memoryLimitKb = actualMemoryLimitMb * 1024;
+
+    const effectiveCpuTimeSec = Math.max(isJava ? 3 : 1, cpuTimeLimitSec);
 
     const payload: Record<string, any> = {
       source_code: sourceCode,
       language_id: languageId,
       stdin: input,
       expected_output: expectedOutput,
-      cpu_time_limit: Math.max(3, cpuTimeLimitSec), // Java cần ít nhất 3 giây để JVM khởi động
+      cpu_time_limit: effectiveCpuTimeSec,
       memory_limit: memoryLimitKb,
       enable_per_process_and_thread_time_limit: true,
       enable_per_process_and_thread_memory_limit: true,
-      ...(isJava && {
-        compiler_options: '-J-Xms64m -J-Xmx128m',
-        command_line_arguments: '-Xms64m -Xmx128m',
-      }),
     };
+
+    // Timeout của HTTP request (axios): cần đủ dài để chờ compile (javac) + run + hàng đợi worker
+    const httpTimeoutMs = (effectiveCpuTimeSec + 15) * 1000;
 
     const response = await axios.post<Judge0SubmissionResult>(
       `${this.apiUrl}/submissions?base64_encoded=false&wait=true`,
       payload,
       {
         headers: { 'Content-Type': 'application/json' },
-        timeout: (cpuTimeLimitSec + 5) * 1000,
+        timeout: httpTimeoutMs,
       },
     );
 
