@@ -187,35 +187,6 @@ export class SubmissionsProcessor extends WorkerHost {
             const tAfterJudge0 = Date.now();
             console.log(`⏱️ [Timeline] Judge0 song song hoàn thành trong: ${tAfterJudge0 - tStartJudge0}ms`);
 
-            // ==================== TẠO FEEDBACK NHẬN XÉT ====================
-            let feedback = '';
-            if (overallStatus === JudgeStatus.ACCEPTED || finalScore10 >= 10) {
-                feedback = '';
-            } else {
-                // Nhờ AI gợi ý lỗi ngắn gọn nếu code bị lỗi
-                try {
-                    const aiPrompt = `
-                        Sinh viên nộp bài lập trình gặp lỗi:
-                        - Ngôn ngữ: ${submission.language}
-                        - Đề bài: ${problem.title}
-                        - Trạng thái: ${overallStatus}
-                        - Chi tiết testcase sai: ${firstFailedTestInfo || 'Kết quả chạy không khớp'}
-                        - Code sinh viên:
-                        ${submission.sourceCode.substring(0, 800)}
-                        
-                        YÊU CẦU BẮT BUỘC:
-                        - Chỉ viết DUY NHẤT 1 đến 2 câu ngắn gọn (dưới 50 từ).
-                        - Nêu thẳng lý do sai và cách sửa. Tuyệt đối không chào hỏi, không dông dài, không chia mục 1 2 3.
-                    `;
-                    feedback = (await this.aiService.generateText(aiPrompt)).trim();
-                } catch (e) {
-                    feedback = `Bài làm chưa chính xác (${overallStatus}). Vui lòng kiểm tra lại thuật toán và các trường hợp biên.`;
-                }
-            }
-
-            const tAfterAI = Date.now();
-            console.log(`⏱️ [Timeline] AI feedback hoàn thành trong: ${tAfterAI - tAfterJudge0}ms`);
-
             // Kiểm tra lần cuối xem sinh viên có bấm HUỶ trong lúc xử lý hay không
             const finalCheck = await this.prisma.submission.findUnique({
                 where: { id: submissionId },
@@ -226,7 +197,7 @@ export class SubmissionsProcessor extends WorkerHost {
                 return;
             }
 
-            // 1. BẮN SOCKET.IO KẾT QUẢ NGAY LẬP TỨC CHO SINH VIÊN (Không để sinh viên đợi DB)
+            // 1. BẮN SOCKET.IO KẾT QUẢ NGAY LẬP TỨC CHO SINH VIÊN (<10ms sau khi Judge0 chấm xong!)
             this.submissionsGateway.sendGradingResult(submission.userId, {
                 submissionId,
                 assignmentId: submission.assignmentId,
@@ -235,7 +206,7 @@ export class SubmissionsProcessor extends WorkerHost {
                 totalScore: finalScore10,
                 executionTimeMs: maxExecutionTimeMs,
                 memoryUsedKb: maxMemoryUsedKb,
-                feedback: feedback.trim(),
+                feedback: '',
                 studentTotalScore: 0,
                 maxClassScore: 0,
                 totalAssignments: 0,
@@ -246,9 +217,34 @@ export class SubmissionsProcessor extends WorkerHost {
             const tSocketSent = Date.now();
             console.log(`🚀 [Fast Response] Đã bắn Socket kết quả tới sinh viên chỉ sau: ${tSocketSent - jobStartTime}ms!`);
 
-            // 2. Chạy lưu Database và cập nhật tiến độ ở phía sau (Background)
+            // 2. Chạy lưu Database, tính tiến độ và sinh AI Feedback ngầm ở phía sau (Background Asynchronous)
             (async () => {
+                let feedback = '';
                 try {
+                    // Nếu không AC thì gọi Gemini AI nhận xét ngầm
+                    if (overallStatus !== JudgeStatus.ACCEPTED && finalScore10 < 10) {
+                        try {
+                            const tStartAI = Date.now();
+                            const aiPrompt = `
+                                Sinh viên nộp bài lập trình gặp lỗi:
+                                - Ngôn ngữ: ${submission.language}
+                                - Đề bài: ${problem.title}
+                                - Trạng thái: ${overallStatus}
+                                - Chi tiết testcase sai: ${firstFailedTestInfo || 'Kết quả chạy không khớp'}
+                                - Code sinh viên:
+                                ${submission.sourceCode.substring(0, 800)}
+                                
+                                YÊU CẦU BẮT BUỘC:
+                                - Chỉ viết DUY NHẤT 1 đến 2 câu ngắn gọn (dưới 50 từ).
+                                - Nêu thẳng lý do sai và cách sửa. Tuyệt đối không chào hỏi, không dông dài, không chia mục 1 2 3.
+                            `;
+                            feedback = (await this.aiService.generateText(aiPrompt)).trim();
+                            console.log(`⏱️ [Timeline] AI feedback hoàn thành trong: ${Date.now() - tStartAI}ms`);
+                        } catch (e) {
+                            feedback = `Bài làm chưa chính xác (${overallStatus}). Vui lòng kiểm tra lại thuật toán và các trường hợp biên.`;
+                        }
+                    }
+
                     await this.prisma.submission.update({
                         where: { id: submissionId },
                         data: {

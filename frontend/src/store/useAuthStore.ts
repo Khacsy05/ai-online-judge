@@ -100,6 +100,7 @@ export const useAuthStore = create<AuthStore>()(
             logout: () => {
                 if (typeof window !== "undefined") {
                     localStorage.removeItem("student-progress-storage");
+                    localStorage.removeItem("admin-cache-storage");
                     disconnectSocket();
                 }
 

@@ -68,7 +68,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       icon: FileCode2,
     },
     {
-      label: "Bài nộp toàn hệ thống",
+      label: "Lịch sử nộp bài",
       path: "/admin/submissions",
       icon: FolderGit2,
     },

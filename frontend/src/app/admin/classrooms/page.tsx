@@ -44,9 +44,10 @@ import {
 import { getProblems, ProblemItem } from "@/services/problem.service";
 import { toast } from "sonner";
 
+import { useAdminStore } from "@/store/useAdminStore";
+
 export default function AdminClassroomsPage() {
-  const [classrooms, setClassrooms] = useState<ClassroomItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { classrooms, loadingClassrooms, fetchClassrooms } = useAdminStore();
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modal State: Tạo / Sửa lớp
@@ -96,22 +97,9 @@ export default function AdminClassroomsPage() {
   const [deleteTargetClass, setDeleteTargetClass] = useState<ClassroomItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // 1. Tải danh sách lớp học
-  const fetchClassrooms = async () => {
-    try {
-      setLoading(true);
-      const data = await getClassList();
-      setClassrooms(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Không thể tải danh sách lớp học.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchClassrooms();
-  }, []);
+    fetchClassrooms(false);
+  }, [fetchClassrooms]);
 
   // 2. Mở Modal chi tiết lớp học để xem & phân công SV / Giao bài tập
   const fetchProblems = async (keyword = "") => {
@@ -184,7 +172,7 @@ export default function AdminClassroomsPage() {
       // Cập nhật lại thông tin lớp học để hiển thị bài tập mới
       const updated = await getClassroomById(detailModalClassId);
       setClassDetail(updated);
-      fetchClassrooms();
+      fetchClassrooms(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Không thể giao bài tập cho lớp.");
     } finally {
@@ -203,7 +191,7 @@ export default function AdminClassroomsPage() {
       // Cập nhật lại thông tin lớp học
       const updated = await getClassroomById(detailModalClassId);
       setClassDetail(updated);
-      fetchClassrooms();
+      fetchClassrooms(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Không thể gỡ bài tập.");
     } finally {
@@ -264,7 +252,7 @@ export default function AdminClassroomsPage() {
         toast.success("Tạo lớp học mới thành công!");
       }
       setShowFormModal(false);
-      fetchClassrooms();
+      fetchClassrooms(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Thao tác thất bại.");
     } finally {
@@ -280,7 +268,7 @@ export default function AdminClassroomsPage() {
       await deleteClassroom(deleteTargetClass.id);
       toast.success(`Đã xóa lớp "${deleteTargetClass.name}" thành công!`);
       setDeleteTargetClass(null);
-      fetchClassrooms();
+      fetchClassrooms(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Không thể xóa lớp học.");
     } finally {
@@ -315,7 +303,7 @@ export default function AdminClassroomsPage() {
         ]);
         setClassDetail(updated);
         setAvailableStudents(Array.isArray(avail) ? avail : []);
-        fetchClassrooms();
+        fetchClassrooms(true);
       } catch (err: any) {
         toast.error(err.response?.data?.message || "Không thể phân công sinh viên.");
       } finally {
@@ -353,7 +341,7 @@ export default function AdminClassroomsPage() {
         ]);
         setClassDetail(updated);
         setAvailableStudents(Array.isArray(avail) ? avail : []);
-        fetchClassrooms();
+        fetchClassrooms(true);
       } catch (err: any) {
         toast.error(err.response?.data?.message || "Không thể phân công sinh viên.");
       } finally {
@@ -394,7 +382,7 @@ export default function AdminClassroomsPage() {
       ]);
       setClassDetail(updated);
       setAvailableStudents(Array.isArray(avail) ? avail : []);
-      fetchClassrooms();
+      fetchClassrooms(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Không thể xóa sinh viên khỏi lớp.");
     } finally {
@@ -438,7 +426,7 @@ export default function AdminClassroomsPage() {
       ]);
       setClassDetail(updated);
       setAvailableStudents(Array.isArray(avail) ? avail : []);
-      fetchClassrooms();
+      fetchClassrooms(true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Không thể xóa các sinh viên đã chọn.");
     } finally {
@@ -475,11 +463,11 @@ export default function AdminClassroomsPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchClassrooms}
+            onClick={() => fetchClassrooms(true)}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
             title="Làm mới"
           >
-            <RefreshCw size={14} className={loading ? "animate-spin text-blue-600" : ""} />
+            <RefreshCw size={14} className={loadingClassrooms ? "animate-spin text-blue-600" : ""} />
             <span>Làm mới</span>
           </button>
           <button
@@ -513,7 +501,7 @@ export default function AdminClassroomsPage() {
       </div>
 
       {/* Grid danh sách lớp học */}
-      {loading ? (
+      {loadingClassrooms && classrooms.length === 0 ? (
         <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white">
           <Loader2 className="size-8 animate-spin text-blue-600" />
           <p className="text-xs font-medium text-slate-400">Đang tải danh sách lớp học...</p>

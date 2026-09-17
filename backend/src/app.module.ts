@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ClassroomsModule } from './modules/classrooms/classrooms.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ProblemsModule } from './modules/problems/problems.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ProblemsModule } from './modules/problems/problems.module';
     ClassroomsModule,
     AdminModule,
     ProblemsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   FileCode2,
   Plus,
@@ -38,10 +38,22 @@ interface FormTestCase {
   isHidden: boolean;
 }
 
+import { useAdminStore } from "@/store/useAdminStore";
+
 export default function AdminProblemsPage() {
-  const [problems, setProblems] = useState<ProblemItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const {
+    problems,
+    totalProblems,
+    totalPages,
+    currentPage,
+    pageSize,
+    searchQuery,
+    loadingProblems,
+    fetchProblems,
+    setCurrentPage,
+    setPageSize,
+    setSearchQuery,
+  } = useAdminStore();
 
   // Modal Thêm / Sửa bài tập
   const [showFormModal, setShowFormModal] = useState(false);
@@ -64,43 +76,66 @@ export default function AdminProblemsPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProblemItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Phân trang từ Backend
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(8);
-  const [totalProblems, setTotalProblems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-
-  // 1. Tải danh sách bài tập từ Backend kèm phân trang
-  const fetchProblemsList = async (page = currentPage, limit = pageSize, search = searchQuery) => {
-    try {
-      setLoading(true);
-      const data = await getProblems({ page, limit, search });
-      if (data && Array.isArray(data.items)) {
-        setProblems(data.items);
-        setTotalProblems(data.total);
-        setTotalPages(data.totalPages || 1);
-      } else if (Array.isArray(data)) {
-        // Fallback
-        setProblems(data);
-        setTotalProblems((data as any[]).length);
-        setTotalPages(Math.ceil((data as any[]).length / limit) || 1);
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Không thể tải danh sách bài tập.");
-    } finally {
-      setLoading(false);
+  // Ref & scroll mượt lên đầu trang khi chuyển trang
+  const isFirstRender = useRef(true);
+  const scrollToTop = () => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      document.documentElement.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      document.body.scrollTo({ top: 0, left: 0, behavior: "smooth" });
     }
   };
 
+  // Loading state khi chuyển trang hoặc tìm kiếm
+  const [isTableLoading, setIsTableLoading] = useState(false);
+
+  // 1. Tải danh sách bài tập từ Backend kèm phân trang qua store
+  const fetchProblemsList = async (page = currentPage, limit = pageSize, search = searchQuery, force = false) => {
+    const cacheKey = `${search.trim()}_${page}_${limit}`;
+    const isCached = !force && !!useAdminStore.getState().problemsPageCache[cacheKey];
+
+    if (!isCached) {
+      setIsTableLoading(true);
+    }
+    try {
+      await fetchProblems({ page, limit, search, force });
+    } finally {
+      setIsTableLoading(false);
+    }
+  };
+
+  // Cuộn lên đầu trang khi chuyển trang
   useEffect(() => {
-    fetchProblemsList(currentPage, pageSize, searchQuery);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    scrollToTop();
+  }, [currentPage]);
+
+  useEffect(() => {
+    const cacheKey = `${searchQuery.trim()}_${currentPage}_${pageSize}`;
+    const isCached = !!useAdminStore.getState().problemsPageCache[cacheKey];
+
+    // Chỉ bật loading khi trang này CHƯA có trong cache Zustand
+    if (!isCached) {
+      setIsTableLoading(true);
+    }
+
+    fetchProblems({ page: currentPage, limit: pageSize, search: searchQuery, force: false })
+      .finally(() => {
+        setIsTableLoading(false);
+      });
   }, [currentPage, pageSize]);
 
   // Khi tìm kiếm thay đổi, reset về trang 1 và tải
   useEffect(() => {
     const timer = setTimeout(() => {
-      setCurrentPage(1);
-      fetchProblemsList(1, pageSize, searchQuery);
+      setIsTableLoading(true);
+      fetchProblems({ page: 1, limit: pageSize, search: searchQuery, force: true })
+        .finally(() => {
+          setTimeout(() => setIsTableLoading(false), 200);
+        });
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -216,7 +251,7 @@ export default function AdminProblemsPage() {
       }
 
       setShowFormModal(false);
-      fetchProblemsList();
+      fetchProblemsList(currentPage, pageSize, searchQuery, true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Thao tác thất bại.");
     } finally {
@@ -232,7 +267,7 @@ export default function AdminProblemsPage() {
       await deleteProblem(deleteTarget.id);
       toast.success(`Đã xóa bài tập "${deleteTarget.title}" thành công!`);
       setDeleteTarget(null);
-      fetchProblemsList();
+      fetchProblemsList(currentPage, pageSize, searchQuery, true);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Không thể xóa bài tập.");
     } finally {
@@ -261,11 +296,11 @@ export default function AdminProblemsPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => fetchProblemsList()}
+            onClick={() => fetchProblemsList(currentPage, pageSize, searchQuery, true)}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer"
             title="Làm mới"
           >
-            <RefreshCw size={14} className={loading ? "animate-spin text-indigo-600" : ""} />
+            <RefreshCw size={14} className={loadingProblems ? "animate-spin text-indigo-600" : ""} />
             <span>Làm mới</span>
           </button>
           <button
@@ -299,7 +334,7 @@ export default function AdminProblemsPage() {
       </div>
 
       {/* Danh sách bài tập (Table hoặc Empty) */}
-      {loading ? (
+      {loadingProblems && problems.length === 0 ? (
         <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white">
           <Loader2 className="size-8 animate-spin text-indigo-600" />
           <p className="text-xs font-medium text-slate-400">Đang tải danh sách bài tập...</p>
@@ -322,7 +357,14 @@ export default function AdminProblemsPage() {
           </button>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+          {/* Thanh loading tiến trình chạy trên đầu bảng khi chuyển trang hoặc tìm kiếm */}
+          {isTableLoading && (
+            <div className="absolute top-0 left-0 right-0 z-20 h-1 overflow-hidden bg-indigo-100">
+              <div className="h-full w-full animate-pulse bg-indigo-600"></div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-600">
               <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -335,7 +377,11 @@ export default function AdminProblemsPage() {
                   <th className="px-5 py-3.5 text-right">Hành động</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody
+                className={`divide-y divide-slate-100 transition-opacity duration-200 ${
+                  isTableLoading ? "opacity-50 pointer-events-none" : "opacity-100"
+                }`}
+              >
                 {problems.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-5 py-4">
@@ -448,7 +494,7 @@ export default function AdminProblemsPage() {
               {/* Nút trang trước */}
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                onClick={() => setCurrentPage(Math.max(currentPage - 1, 1))}
                 disabled={currentPage <= 1}
                 className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
               >
@@ -495,7 +541,7 @@ export default function AdminProblemsPage() {
               {/* Nút trang sau */}
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                onClick={() => setCurrentPage(Math.min(currentPage + 1, totalPages))}
                 disabled={currentPage >= totalPages}
                 className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
               >
