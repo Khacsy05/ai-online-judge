@@ -3,10 +3,16 @@ import { ProblemsService } from './problems.service';
 import { CreateProblemDto } from './dto/create-problem.dto';
 import { UpdateProblemDto } from './dto/update-problem.dto';
 import { QueryProblemsDto } from './dto/query-problems.dto';
+import { GenerateBoundaryTestsDto } from './dto/generate-boundary-tests.dto';
 
 @Controller('problems')
 export class ProblemsController {
   constructor(private readonly problemsService: ProblemsService) {}
+
+  @Post('generate-boundary-tests')
+  generateBoundaryTests(@Body() dto: GenerateBoundaryTestsDto) {
+    return this.problemsService.generateBoundaryTests(dto);
+  }
 
   @Post()
   create(@Body() createProblemDto: CreateProblemDto) {

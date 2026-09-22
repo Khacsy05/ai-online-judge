@@ -496,10 +496,12 @@ export function SubmitModal({
                 </div>
 
                 <div className="text-right">
-                  <span className="text-2xl font-black text-slate-900">
-                    {gradingResult.totalScore.toFixed(1)}
-                  </span>
-                  <span className="text-xs text-slate-400"> / 10.0đ</span>
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-2xl font-black text-slate-900">
+                      {gradingResult.totalScore.toFixed(1)}
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold"> / 10.0đ</span>
+                  </div>
                 </div>
               </div>
 
