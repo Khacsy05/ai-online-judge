@@ -20,6 +20,12 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
+  Cpu,
+  Check,
+  AlertTriangle,
+  Upload,
+  FileText,
 } from "lucide-react";
 import {
   getProblems,
@@ -27,12 +33,15 @@ import {
   createProblem,
   updateProblem,
   deleteProblem,
+  generateBoundaryTests,
   ProblemItem,
   TestCaseItem,
+  GenerateBoundaryTestsResponse,
 } from "@/services/problem.service";
 import { toast } from "sonner";
 
 interface FormTestCase {
+  id?: string;
   input: string;
   expectedOutput: string;
   isHidden: boolean;
@@ -75,6 +84,17 @@ export default function AdminProblemsPage() {
   // Modal Xác nhận xóa bài tập
   const [deleteTarget, setDeleteTarget] = useState<ProblemItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Modal Tự động sinh Test Case Biên (AST + AI)
+  const [showBoundaryModal, setShowBoundaryModal] = useState(false);
+  const [boundarySolutionCode, setBoundarySolutionCode] = useState("");
+  const [boundaryFileName, setBoundaryFileName] = useState("");
+  const [boundaryLanguage, setBoundaryLanguage] = useState("python");
+  const [boundaryNumCases, setBoundaryNumCases] = useState(5);
+  const [generatingBoundary, setGeneratingBoundary] = useState(false);
+  const [boundaryResult, setBoundaryResult] = useState<GenerateBoundaryTestsResponse | null>(null);
+  const [boundaryStep, setBoundaryStep] = useState<"input" | "generating" | "result">("input");
+  const boundaryFileInputRef = useRef<HTMLInputElement>(null);
 
   // Ref & scroll mượt lên đầu trang khi chuyển trang
   const isFirstRender = useRef(true);
@@ -166,6 +186,7 @@ export default function AdminProblemsPage() {
       if (detail.testCases && detail.testCases.length > 0) {
         setFormTestCases(
           detail.testCases.map((tc) => ({
+            id: tc.id,
             input: tc.input || "",
             expectedOutput: tc.expectedOutput || "",
             isHidden: !!tc.isHidden,
@@ -220,6 +241,106 @@ export default function AdminProblemsPage() {
     );
   };
 
+  // Xử lý chọn file code mẫu giải thuật
+  const handleBoundaryFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Tự động nhận diện ngôn ngữ dựa trên đuôi file
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "py") {
+      setBoundaryLanguage("python");
+    } else if (ext === "cpp" || ext === "cc" || ext === "cxx" || ext === "c") {
+      setBoundaryLanguage("cpp");
+    } else if (ext === "java") {
+      setBoundaryLanguage("java");
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setBoundarySolutionCode(content);
+        setBoundaryFileName(file.name);
+        toast.success(`Đã tải lên tệp: ${file.name}`);
+      }
+    };
+    reader.onerror = () => {
+      toast.error("Không thể đọc tệp mã nguồn này.");
+    };
+    reader.readAsText(file);
+  };
+
+  // 4b. Xử lý tự động sinh Test Case Biên (AST + AI + Judge0)
+  const handleGenerateBoundary = async () => {
+    if (!formTitle.trim()) {
+      toast.error("Vui lòng nhập Tiêu đề bài tập trước khi sinh test case.");
+      return;
+    }
+    if (!formDescription.trim()) {
+      toast.error("Vui lòng nhập Mô tả bài tập trước khi sinh test case.");
+      return;
+    }
+    if (!boundarySolutionCode.trim()) {
+      toast.error("Vui lòng chọn file mã nguồn giải mẫu (Reference Solution).");
+      return;
+    }
+
+    try {
+      setGeneratingBoundary(true);
+      setBoundaryStep("generating");
+      setBoundaryResult(null);
+
+      const res = await generateBoundaryTests({
+        problemTitle: formTitle.trim(),
+        problemDescription: formDescription.trim(),
+        solutionCode: boundarySolutionCode.trim(),
+        language: boundaryLanguage,
+        numCases: Number(boundaryNumCases) || 5,
+      });
+
+      setBoundaryResult(res);
+      setBoundaryStep("result");
+      toast.success(res.summary || "Đã sinh test case biên thành công!");
+    } catch (err: any) {
+      const errMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Lỗi khi sinh test case biên.";
+      toast.error(errMsg);
+      setBoundaryStep("input");
+    } finally {
+      setGeneratingBoundary(false);
+    }
+  };
+
+  const handleApplyBoundaryTests = (mode: "replace" | "append") => {
+    if (!boundaryResult || !boundaryResult.testCases || boundaryResult.testCases.length === 0) {
+      toast.error("Không có test case nào để áp dụng.");
+      return;
+    }
+
+    const newCases: FormTestCase[] = boundaryResult.testCases.map((tc) => ({
+      input: tc.input || "",
+      expectedOutput: tc.expectedOutput || "",
+      isHidden: tc.isHidden !== undefined ? tc.isHidden : true,
+    }));
+
+    if (mode === "replace") {
+      setFormTestCases(newCases);
+      toast.success(`Đã thay thế bằng ${newCases.length} test case biên mới!`);
+    } else {
+      const existing = formTestCases.filter(
+        (tc) => tc.input.trim() !== "" || tc.expectedOutput.trim() !== ""
+      );
+      setFormTestCases([...existing, ...newCases]);
+      toast.success(`Đã thêm ${newCases.length} test case biên vào danh sách!`);
+    }
+
+    setShowBoundaryModal(false);
+    setBoundaryStep("input");
+  };
+
   // 5. Submit Form Tạo / Sửa
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,6 +357,7 @@ export default function AdminProblemsPage() {
         timeLimitMs: Number(formTimeLimit),
         memoryLimitMb: Number(formMemoryLimit),
         testCases: formTestCases.map((tc) => ({
+          id: tc.id,
           input: tc.input,
           expectedOutput: tc.expectedOutput,
           isHidden: tc.isHidden,
@@ -665,18 +787,33 @@ export default function AdminProblemsPage() {
                           2. Bộ Test Cases ({formTestCases.length})
                         </h3>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Test case không ẩn sẽ được hiển thị công khai cho sinh viên xem ví dụ mẫu.
+                          Điểm số bài nộp được tính đều theo số lượng test case (Ví dụ: bài có {formTestCases.length} test thì mỗi test đúng chiếm 1/{formTestCases.length} trọng số, quy đổi về thang điểm 10.0).
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={addTestCase}
-                        className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
-                      >
-                        <Plus size={13} />
-                        <span>Thêm Test Case</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBoundaryStep("input");
+                            setBoundaryResult(null);
+                            setShowBoundaryModal(true);
+                          }}
+                          className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-600 to-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:from-purple-700 hover:to-indigo-700 transition-all cursor-pointer"
+                        >
+                          <Sparkles size={13} />
+                          <span>⚡ Sinh Test Biên (AST + AI)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={addTestCase}
+                          className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
+                        >
+                          <Plus size={13} />
+                          <span>Thêm Test Case</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
@@ -869,29 +1006,388 @@ export default function AdminProblemsPage() {
               <strong className="text-slate-800">&quot;{deleteTarget.title}&quot;</strong>?
             </p>
 
-            {(deleteTarget._count?.assignments || 0) > 0 && (
+            {(deleteTarget._count?.submissions || 0) > 0 ? (
+              <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-[11px] text-rose-800 leading-relaxed">
+                🚫 <strong>Không thể xóa:</strong> Bài tập này đã có <strong>{deleteTarget._count?.submissions} bài nộp</strong> từ sinh viên. Để bảo vệ dữ liệu và lịch sử chấm điểm, hệ thống không cho phép xóa bài tập đã có bài nộp.
+              </div>
+            ) : (deleteTarget._count?.assignments || 0) > 0 ? (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800">
                 ⚠️ Bài tập này hiện đang được giao ở <strong>{deleteTarget._count?.assignments} lớp học</strong>.
               </div>
-            )}
+            ) : null}
 
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Hủy
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                disabled={deleting}
-                className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                disabled={deleting || (deleteTarget._count?.submissions || 0) > 0}
+                className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {deleting && <Loader2 size={13} className="animate-spin" />}
                 <span>Xác nhận xóa</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL 4: TỰ ĐỘNG SINH TEST CASE BIÊN (AST + AI + JUDGE0) ===================== */}
+      {showBoundaryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 bg-gradient-to-r from-purple-50/70 via-indigo-50/50 to-white rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-md shadow-indigo-200">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-900">
+                      Tự động sinh Test Case Biên
+                    </h2>
+                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700 tracking-wide">
+                      AST + GEMINI + JUDGE0
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Tải lên file code mẫu (.py, .cpp, .java) để hệ thống trích xuất AST và dùng AI sinh bộ test case biên chuẩn xác.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowBoundaryModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              {/* Bước 1: Nhập thông số */}
+              {boundaryStep === "input" && (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-indigo-900 leading-relaxed">
+                    <p className="font-semibold flex items-center gap-1.5 text-indigo-800">
+                      <Cpu size={14} /> Quy trình hoạt động:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 mt-1 text-[11px] text-indigo-700">
+                      <li><strong>Phân tích AST:</strong> Quét cây cú pháp của Code mẫu để tìm các phép so sánh (<code>&lt;</code>, <code>&lt;=</code>, <code>==</code>, <code>len()</code>), mốc 0, 1, tràn số.</li>
+                      <li><strong>Làm giàu ngữ cảnh (AI):</strong> Gemini đọc đề bài + điều kiện AST để sinh chuỗi Input (stdin) tương ứng.</li>
+                      <li><strong>Thực thi Oracle:</strong> Chạy code mẫu trên Judge0 để tính <code>expectedOutput</code> chuẩn xác tuyệt đối.</li>
+                    </ol>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Ngôn ngữ của Code mẫu
+                      </label>
+                      <select
+                        value={boundaryLanguage}
+                        onChange={(e) => setBoundaryLanguage(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                      >
+                        <option value="python">Python 3 (ast.parse)</option>
+                        <option value="cpp">C++ (Pattern Extractor)</option>
+                        <option value="java">Java (Pattern Extractor)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Số lượng Test Case Biên mong muốn
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={15}
+                        value={boundaryNumCases}
+                        onChange={(e) => setBoundaryNumCases(Number(e.target.value))}
+                        className="w-full rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Chọn tệp mã nguồn giải mẫu (Reference Solution) <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400">
+                        Hỗ trợ .py, .cpp, .java
+                      </span>
+                    </div>
+
+                    {/* Hidden file input */}
+                    <input
+                      ref={boundaryFileInputRef}
+                      type="file"
+                      accept=".py,.cpp,.cc,.cxx,.c,.java"
+                      onChange={handleBoundaryFileUpload}
+                      className="hidden"
+                    />
+
+                    {/* Khung chọn file */}
+                    {!boundarySolutionCode ? (
+                      <div
+                        onClick={() => boundaryFileInputRef.current?.click()}
+                        className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/30 p-8 text-center transition-all hover:border-indigo-500 hover:bg-indigo-50/70 cursor-pointer"
+                      >
+                        <div className="flex size-12 items-center justify-center rounded-2xl bg-white shadow-sm border border-indigo-100 text-indigo-600 transition-transform group-hover:scale-110">
+                          <Upload size={22} />
+                        </div>
+                        <p className="mt-3 text-xs font-semibold text-slate-700">
+                          Nhấp để chọn tệp mã nguồn từ máy tính
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Chấp nhận file <code>.py</code> (Python), <code>.cpp</code> (C++), hoặc <code>.java</code> (Java)
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                        {/* Thanh tiêu đề tệp đã chọn */}
+                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3.5 py-2">
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="flex size-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                              <FileText size={15} />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-800 text-xs truncate max-w-[280px] sm:max-w-md">
+                                {boundaryFileName || "Tệp mã nguồn giải mẫu"}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                {boundarySolutionCode.split("\n").length} dòng • {new Blob([boundarySolutionCode]).size} bytes
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => boundaryFileInputRef.current?.click()}
+                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                            >
+                              Đổi tệp khác
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBoundarySolutionCode("");
+                                setBoundaryFileName("");
+                                if (boundaryFileInputRef.current) {
+                                  boundaryFileInputRef.current.value = "";
+                                }
+                              }}
+                              className="rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
+                              title="Gỡ tệp"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Xem trước nội dung mã nguồn trong tệp */}
+                        <div className="p-3 bg-slate-950 max-h-56 overflow-y-auto">
+                          <pre className="font-mono text-[11px] leading-relaxed text-emerald-400 whitespace-pre-wrap selection:bg-emerald-900">
+                            {boundarySolutionCode}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Bước 2: Đang phân tích & thực thi */}
+              {boundaryStep === "generating" && (
+                <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+                  <div className="relative">
+                    <div className="size-16 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center text-purple-600">
+                      <Sparkles size={24} />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">Đang tự động sinh Test Case Biên...</h3>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                      Hệ thống đang duyệt cây AST mã nguồn, đưa tri thức biên vào Gemini và chạy thử trên Judge0 Sandbox.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-purple-700 font-medium bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100">
+                    <span className="animate-pulse">🌲 AST Analysis</span>
+                    <span>→</span>
+                    <span className="animate-pulse">🤖 Gemini Prompting</span>
+                    <span>→</span>
+                    <span className="animate-pulse">⚙️ Judge0 Execution</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Bước 3: Xem kết quả */}
+              {boundaryStep === "result" && boundaryResult && (
+                <div className="space-y-4">
+                  {/* Báo cáo AST */}
+                  <div className="rounded-xl border border-purple-100 bg-purple-50/50 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                        <Cpu size={14} /> Tri thức trích xuất từ cây AST:
+                      </span>
+                      <span className="rounded-md bg-purple-200/60 px-2 py-0.5 text-[10px] font-bold text-purple-800">
+                        {boundaryResult.astReport?.conditions?.length || 0} điều kiện rẽ nhánh
+                      </span>
+                    </div>
+
+                    {boundaryResult.astReport?.conditions && boundaryResult.astReport.conditions.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {boundaryResult.astReport.conditions.map((cond, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-white px-2 py-1 text-[11px] font-mono text-purple-800 shadow-2xs"
+                            title={`Dòng ${cond.line} - Loại: ${cond.category}`}
+                          >
+                            <span className="text-slate-400 text-[10px]">L{cond.line}:</span>
+                            <strong>{cond.expression}</strong>
+                            {cond.bva_candidates && cond.bva_candidates.length > 0 && (
+                              <span className="text-[10px] text-indigo-600">
+                                [BVA: {cond.bva_candidates.slice(0, 3).join(", ")}]
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-purple-700 italic">
+                        Mã nguồn đơn giản hoặc không phát hiện lệnh rẽ nhánh if/while rõ ràng. Đã dùng các mốc biên kinh điển (0, 1, -1).
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Danh sách Test Cases */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                        Danh sách Test Case Biên ({boundaryResult.testCases?.length || 0})
+                      </h4>
+                      <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                        <Check size={13} /> 100% Output xác thực qua Judge0
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                      {boundaryResult.testCases?.map((tc, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-md bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 text-[10px]">
+                                Test #{idx + 1}
+                              </span>
+                              <span className="font-semibold text-slate-800 text-xs">
+                                {tc.name}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                              {tc.category || "boundary"}
+                            </span>
+                          </div>
+
+                          {tc.description && (
+                            <p className="text-[11px] text-slate-500 italic">
+                              💡 {tc.description}
+                            </p>
+                          )}
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                            <div className="rounded-lg bg-white border border-slate-200 p-2 font-mono">
+                              <span className="text-[10px] text-slate-400 block mb-0.5">Input (stdin):</span>
+                              <pre className="whitespace-pre-wrap text-slate-800 text-[11px] max-h-16 overflow-y-auto">
+                                {tc.input}
+                              </pre>
+                            </div>
+                            <div className="rounded-lg bg-emerald-50/50 border border-emerald-200 p-2 font-mono">
+                              <span className="text-[10px] text-emerald-700 block mb-0.5">Expected Output (Judge0):</span>
+                              <pre className="whitespace-pre-wrap text-emerald-900 text-[11px] font-bold max-h-16 overflow-y-auto">
+                                {tc.expectedOutput || "(Trống)"}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-slate-100 p-4 bg-slate-50/50 rounded-b-2xl">
+              {boundaryStep === "input" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowBoundaryModal(false)}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateBoundary}
+                    disabled={generatingBoundary}
+                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Sparkles size={14} />
+                    <span>Phân tích AST & Sinh Test</span>
+                  </button>
+                </>
+              )}
+
+              {boundaryStep === "generating" && (
+                <div className="w-full text-center text-xs text-slate-400">
+                  Vui lòng đợi vài giây để hệ thống phân tích và chạy qua Judge0...
+                </div>
+              )}
+
+              {boundaryStep === "result" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setBoundaryStep("input")}
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    ← Chạy lại
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyBoundaryTests("append")}
+                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 cursor-pointer"
+                    >
+                      + Thêm vào danh sách hiện tại
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyBoundaryTests("replace")}
+                      className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:from-purple-700 hover:to-indigo-700 cursor-pointer"
+                    >
+                      ✓ Thay thế toàn bộ test cases
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

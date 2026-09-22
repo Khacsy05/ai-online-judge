@@ -155,8 +155,11 @@ export function SubmissionDetailModal({
               Điểm số
             </span>
             <span className="text-lg font-bold text-slate-900">
-              {submission.totalScore}
+              {submission.totalScore.toFixed(1)}
               <span className="text-xs font-normal text-slate-400"> / 10.0</span>
+            </span>
+            <span className="block text-[10px] font-mono text-slate-400 mt-0.5">
+              ({passedTestCases}/{details.length} tests đạt)
             </span>
           </div>
           <div className="p-2 border-x border-slate-200/60">

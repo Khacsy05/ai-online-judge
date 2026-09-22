@@ -10,6 +10,7 @@ export interface ProblemItem {
   _count?: {
     testCases: number;
     assignments: number;
+    submissions?: number;
   };
   author?: {
     id: string;
@@ -46,6 +47,7 @@ export interface UpdateProblemPayload {
   timeLimitMs?: number;
   memoryLimitMb?: number;
   testCases?: Array<{
+    id?: string;
     input: string;
     expectedOutput: string;
     isHidden?: boolean;
@@ -112,5 +114,60 @@ export async function updateProblem(id: string, payload: UpdateProblemPayload): 
  */
 export async function deleteProblem(id: string): Promise<any> {
   const res = await apiClient.delete(`/problems/${id}`);
+  return res.data;
+}
+
+export interface GenerateBoundaryTestsPayload {
+  problemTitle: string;
+  problemDescription: string;
+  solutionCode: string;
+  language: string;
+  numCases?: number;
+}
+
+export interface GeneratedBoundaryTestCase {
+  name: string;
+  category?: string;
+  description?: string;
+  input: string;
+  expectedOutput: string;
+  isHidden: boolean;
+  score: number;
+  judgeStatus?: string;
+  executionTime?: string;
+  memoryUsed?: number;
+}
+
+export interface GenerateBoundaryTestsResponse {
+  success: boolean;
+  astReport: {
+    success: boolean;
+    language: string;
+    conditions: Array<{
+      line: number;
+      expression: string;
+      variable: string;
+      operator: string;
+      constant: any;
+      bva_candidates: any[];
+      category: string;
+    }>;
+    special_constants: any[];
+    summary: string;
+  };
+  testCases: GeneratedBoundaryTestCase[];
+  summary: string;
+}
+
+/**
+ * Tự động sinh ca kiểm thử biên (AST + AI + Judge0)
+ */
+export async function generateBoundaryTests(
+  payload: GenerateBoundaryTestsPayload
+): Promise<GenerateBoundaryTestsResponse> {
+  const res = await apiClient.post<GenerateBoundaryTestsResponse>(
+    "/problems/generate-boundary-tests",
+    payload
+  );
   return res.data;
 }
