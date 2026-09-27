@@ -5,12 +5,29 @@ import * as bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken"
 import * as Express from 'express';
 import { UpdatePasswordDto } from './dto/updatePass.dto';
+import Redis from 'ioredis';
 @Injectable()
 export class AuthService {
-    constructor(private prisma: PrismaService) { }
+    private redis: Redis;
+    constructor(private prisma: PrismaService) {
+        this.redis = new Redis({
+            host: process.env.REDIS_HOST || 'localhost',
+            port: Number(process.env.REDIS_PORT) || 6379,
+        });
+    }
 
     async login(loginDto: LoginDto, response: Express.Response) {
         const { email, password } = loginDto;
+
+        const lockKey = `login_lock:${email}`;
+        const isLocked = await this.redis.get(lockKey);
+        if (isLocked) {
+            const ttl = await this.redis.ttl(lockKey); // Số giây còn lại
+            const minutesLeft = Math.ceil(ttl / 60);
+            throw new UnauthorizedException(
+                `Tài khoản đã bị tạm khóa do nhập sai mật khẩu quá 5 lần. Vui lòng thử lại sau ${minutesLeft} phút.`
+            );
+        }
         const user = await this.prisma.user.findUnique({
             where: { email: email },
             include: {
@@ -30,8 +47,33 @@ export class AuthService {
         // 3. So sánh mật khẩu
         const isPasswordMatched = await bcrypt.compare(password, user.password);
         if (!isPasswordMatched) {
-            throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
+            const attemptsKey = `login_attempts:${email}`;
+            const attempts = await this.redis.incr(attemptsKey);
+
+            // Giữ bộ đếm này trong 15 phút (sau 15 phút không nhập sai nữa thì tự hủy)
+            if (attempts === 1) {
+                await this.redis.expire(attemptsKey, 15 * 60);
+            }
+
+            const MAX_ATTEMPTS = 5;
+            if (attempts >= MAX_ATTEMPTS) {
+                // Đã sai đủ 5 lần -> KHÓA TÀI KHOẢN TRONG 5 PHÚT (300 giây)
+                await this.redis.set(lockKey, 'locked', 'EX', 5 * 60);
+                await this.redis.del(attemptsKey);
+
+                throw new UnauthorizedException(
+                    'Bạn đã nhập sai mật khẩu 5 lần liên tiếp. Tài khoản bị tạm khóa trong 5 phút!'
+                );
+            } else {
+                const remaining = MAX_ATTEMPTS - attempts;
+                throw new UnauthorizedException(
+                    `Email hoặc mật khẩu không chính xác! Bạn còn ${remaining} lần thử trước khi tài khoản bị khóa tạm thời.`
+                );
+            }
         }
+
+        // ✅ NẾU NHẬP ĐÚNG MẬT KHẨU: Xóa bỏ bộ đếm số lần sai trong Redis
+        await this.redis.del(`login_attempts:${email}`);
 
         const primaryClassroomId = user.classrooms?.[0]?.classroomId || null;
         const classrooms = user.classrooms?.map(c => c.classroom) || [];

@@ -103,9 +103,15 @@ export function SubmitModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Giữ ref cho currentSubmission và onSuccess để callback của socket luôn đọc giá trị mới nhất
+  // Ref lưu kết quả chấm nếu socket tới trước khi HTTP POST kịp cập nhật state
+  const earlyResultRef = useRef<GradingFinishedEvent | null>(null);
+
+  // Giữ ref cho currentSubmission, assignment và onSuccess để callback của socket luôn đọc giá trị mới nhất
   const currentSubmissionRef = useRef(currentSubmission);
   currentSubmissionRef.current = currentSubmission;
+
+  const assignmentRef = useRef(assignment);
+  assignmentRef.current = assignment;
 
   const onSuccessRef = useRef(onSuccess);
   onSuccessRef.current = onSuccess;
@@ -119,15 +125,26 @@ export function SubmitModal({
     if (!socket) return;
 
     const handleGradingFinished = (event: GradingFinishedEvent) => {
-      // Chỉ nhận kết quả đúng bài nộp hiện tại trong Modal này
-      if (
-        currentSubmissionRef.current &&
-        event.submissionId === currentSubmissionRef.current.id
-      ) {
+      console.log("⚡ [SubmitModal Socket] Nhận sự kiện gradingFinished:", event);
+      const curSub = currentSubmissionRef.current;
+      const curAssignment = assignmentRef.current;
+
+      // Khớp nếu:
+      // 1. Đúng submissionId hiện tại
+      // 2. Hoặc đúng assignmentId của Modal đang mở
+      const isMatch =
+        (curSub && event.submissionId === curSub.id) ||
+        (curAssignment && event.assignmentId === curAssignment.assignmentId);
+
+      if (isMatch) {
+        console.log("✅ [SubmitModal Socket] Khớp kết quả! Chuyển ngay sang bước RESULT.");
         setGradingResult(event);
         setStep("RESULT");
         useSubmissionStore.getState().updateSubmissionRealtime(event);
         if (onSuccessRef.current) onSuccessRef.current();
+      } else {
+        console.log("⏳ [SubmitModal Socket] Nhận sớm trước khi submitCode gán state, lưu vào earlyResultRef.");
+        earlyResultRef.current = event;
       }
     };
 
@@ -138,13 +155,13 @@ export function SubmitModal({
     };
   }, [userId, user?.id]);
 
-  // Fallback Polling phòng khi Socket bị rớt mạng
+  // Fallback Polling siêu tốc phòng khi Socket bị trễ: kiểm tra ngay sau 800ms
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
 
     if (step === "GRADING" && currentSubmission && !gradingResult) {
       let attempts = 0;
-      timer = setInterval(async () => {
+      const checkStatus = async () => {
         attempts++;
         try {
           const detail = await getSubmissionById(currentSubmission.id);
@@ -153,6 +170,7 @@ export function SubmitModal({
             detail.status !== "RUNNING" &&
             detail.status !== "CANCELLED"
           ) {
+            console.log("🔄 [SubmitModal Polling] Tìm thấy kết quả từ Polling:", detail.status);
             setGradingResult({
               submissionId: detail.id,
               assignmentId: detail.assignmentId,
@@ -176,11 +194,19 @@ export function SubmitModal({
           // Bỏ qua lỗi polling
         }
 
-        // Sau 20 giây nếu vẫn chưa có kết quả thì dừng polling
-        if (attempts > 10 && timer) {
+        if (attempts > 15 && timer) {
           clearInterval(timer);
         }
-      }, 2000);
+      };
+
+      // Chạy kiểm tra nhanh lần 1 sau 600ms, sau đó định kỳ mỗi 800ms
+      const initialTimeout = setTimeout(checkStatus, 600);
+      timer = setInterval(checkStatus, 800);
+
+      return () => {
+        clearTimeout(initialTimeout);
+        if (timer) clearInterval(timer);
+      };
     }
 
     return () => {
@@ -226,6 +252,18 @@ export function SubmitModal({
       setCurrentSubmission(submission);
       useSubmissionStore.getState().invalidateCache();
 
+      // Kiểm tra nếu Socket đã gửi kết quả về trước đó trong lúc đang chờ HTTP response
+      if (
+        earlyResultRef.current &&
+        (earlyResultRef.current.submissionId === submission.id ||
+          earlyResultRef.current.assignmentId === assignment.assignmentId)
+      ) {
+        setGradingResult(earlyResultRef.current);
+        setStep("RESULT");
+        if (onSuccess) onSuccess();
+        return;
+      }
+
       // Nếu bài nộp đã được chấm luôn (hoặc trả về ngay kết quả)
       if (
         submission.status !== "PENDING" &&
@@ -259,6 +297,7 @@ export function SubmitModal({
     setSelectedFile(null);
     setCurrentSubmission(null);
     setGradingResult(null);
+    earlyResultRef.current = null;
     setErrorMsg(null);
     setStep("UPLOAD");
     if (fileInputRef.current) {

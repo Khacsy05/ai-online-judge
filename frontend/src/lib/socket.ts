@@ -15,25 +15,25 @@ export function getSocket(userId?: string): Socket | null {
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ||
     "http://localhost:3001";
 
-  // Nếu socket đã kết nối và đúng userId thì tái sử dụng, không tạo mới
-  if (socketInstance && currentSocketUserId === userId && socketInstance.connected) {
+  // Nếu socket đã tạo cho đúng userId này thì tái sử dụng
+  if (socketInstance && currentSocketUserId === userId) {
+    if (!socketInstance.connected) {
+      socketInstance.connect();
+    }
     return socketInstance;
   }
 
   // Nếu đổi user khác, ngắt kết nối cũ trước khi tạo kết nối mới
   if (socketInstance) {
-    if (currentSocketUserId !== userId) {
-      socketInstance.disconnect();
-      socketInstance = null;
-    } else {
-      return socketInstance;
-    }
+    socketInstance.disconnect();
+    socketInstance = null;
   }
 
   currentSocketUserId = userId;
   socketInstance = io(socketUrl, {
     auth: { userId },
-    transports: ["websocket"],
+    query: { userId },
+    transports: ["websocket", "polling"],
     reconnection: true,
     reconnectionAttempts: 10,
     reconnectionDelay: 1000,

@@ -13,6 +13,7 @@ import {
   FileCode2,
   FolderGit2,
   Settings,
+  UserCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -42,6 +43,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       label: "Lịch sử nộp bài",
       path: "/student/submissions",
       icon: Send,
+    },
+    {
+      label: "Trang cá nhân",
+      path: "/student/profile",
+      icon: UserCircle,
     },
   ];
 
