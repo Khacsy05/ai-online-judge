@@ -47,3 +47,15 @@ export async function logoutUser() {
     }
   }
 }
+
+export async function updatePassword(data: import("@/types/auth").UpdatePasswordPayload) {
+  try {
+    const res = await apiClient.patch("/auth/updatePassword", data);
+    return res.data;
+  } catch (error: any) {
+    console.error("Lỗi khi đổi mật khẩu:", error);
+    const message =
+      error.response?.data?.message || "Đổi mật khẩu thất bại. Vui lòng kiểm tra lại.";
+    throw new Error(Array.isArray(message) ? message.join(", ") : message);
+  }
+}

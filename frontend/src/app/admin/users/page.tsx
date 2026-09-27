@@ -350,9 +350,8 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody
-                className={`divide-y divide-slate-100 text-slate-600 transition-opacity duration-200 ${
-                  isTableLoading ? "opacity-50 pointer-events-none" : "opacity-100"
-                }`}
+                className={`divide-y divide-slate-100 text-slate-600 transition-opacity duration-200 ${isTableLoading ? "opacity-50 pointer-events-none" : "opacity-100"
+                  }`}
               >
                 {users.map((u) => {
                   const isAdmin = u.role === "ADMIN";
@@ -506,11 +505,10 @@ export default function AdminUsersPage() {
                         <button
                           type="button"
                           onClick={() => setCurrentUserPage(page)}
-                          className={`size-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                            currentUserPage === page
-                              ? "bg-purple-600 text-white shadow-xs"
-                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                          }`}
+                          className={`size-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${currentUserPage === page
+                            ? "bg-purple-600 text-white shadow-xs"
+                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
                         >
                           {page}
                         </button>
@@ -561,7 +559,11 @@ export default function AdminUsersPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmitForm} className="space-y-4">
+            <form onSubmit={handleSubmitForm} className="space-y-4" autoComplete="off">
+              {/* Fake hidden inputs để lừa cơ chế autofill của Chrome/Edge */}
+              <input type="text" style={{ display: "none" }} />
+              <input type="password" style={{ display: "none" }} />
+
               {/* Họ tên */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -573,6 +575,7 @@ export default function AdminUsersPage() {
                   placeholder="Ví dụ: Nguyễn Văn An"
                   value={formFullName}
                   onChange={(e) => setFormFullName(e.target.value)}
+                  autoComplete="off"
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-900 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all"
                 />
               </div>
@@ -588,6 +591,9 @@ export default function AdminUsersPage() {
                   placeholder="Ví dụ: student@gmail.com"
                   value={formEmail}
                   onChange={(e) => setFormEmail(e.target.value)}
+                  autoComplete="new-email"
+                  name="user_new_email"
+                  id="user_new_email"
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-900 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all"
                 />
               </div>
@@ -604,6 +610,9 @@ export default function AdminUsersPage() {
                     placeholder="Tối thiểu 6 ký tự"
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
+                    autoComplete="new-password"
+                    name="user_new_password"
+                    id="user_new_password"
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-900 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all"
                   />
                 </div>
@@ -624,19 +633,7 @@ export default function AdminUsersPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Vai trò <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={formRole}
-                    onChange={(e) => setFormRole(e.target.value as any)}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-900 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all cursor-pointer"
-                  >
-                    <option value="STUDENT">Sinh viên (STUDENT)</option>
-                    <option value="ADMIN">Quản trị viên (ADMIN)</option>
-                  </select>
-                </div>
+
               </div>
 
               {/* Phân vào lớp học */}

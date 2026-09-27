@@ -3,3 +3,10 @@ export interface DataLogin {
   password: string;
 }
 
+export interface UpdatePasswordPayload {
+  email: string;
+  oldPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+

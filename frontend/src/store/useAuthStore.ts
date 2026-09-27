@@ -10,6 +10,7 @@ export interface JwtPayload {
     name: string;
     email: string;
     role: Role;
+    studentCode?: string | null;
     classroomId?: string | null;
     exp?: number;
     iat?: number;
@@ -72,11 +73,18 @@ export const useAuthStore = create<AuthStore>()(
                         userDetail?.fullname ||
                         decoded.name;
 
+                    const studentCode =
+                        userDetail?.studentCode ||
+                        (userDetail as any)?.studentCode ||
+                        decoded.studentCode ||
+                        undefined;
+
                     const userObj: UserDetail = {
                         id: decoded.id,
                         fullname: fullname,
                         email: userDetail?.email || decoded.email,
                         role: decoded.role,
+                        studentCode: studentCode,
                         classroomId: classroomId,
                         classrooms: userDetail?.classrooms || [],
                     };

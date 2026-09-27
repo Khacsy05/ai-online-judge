@@ -54,6 +54,12 @@ apiClient.interceptors.response.use(
             }
         }
 
+        if (error.response?.status === 429) {
+            toast.warning('Bạn đang thao tác quá nhanh! Vui lòng chậm lại một chút.');
+            return Promise.reject(error);
+        }
+
+
         return Promise.reject(error);
     }
 );

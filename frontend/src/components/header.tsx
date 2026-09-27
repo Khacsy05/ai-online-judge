@@ -87,7 +87,17 @@ export function Header({
 
       <div className="ml-auto flex items-center gap-4">
         {/* Thông tin tài khoản */}
-        <div className="flex items-center gap-2.5">
+        <button
+          onClick={() => {
+            if (!isAdminArea) {
+              window.location.href = "/student/profile";
+            }
+          }}
+          className={`flex items-center gap-2.5 rounded-xl p-1 text-left transition-all ${
+            !isAdminArea ? "hover:bg-slate-50 cursor-pointer" : "cursor-default"
+          }`}
+          title={!isAdminArea ? "Xem trang cá nhân & đổi mật khẩu" : undefined}
+        >
           {rawDisplayName ? (
             <div className="flex size-9 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700 shadow-xs border border-blue-200">
               {initials}
@@ -108,7 +118,7 @@ export function Header({
               {displayRole}
             </p>
           </div>
-        </div>
+        </button>
 
         {/* Nút Đăng xuất */}
         <button
