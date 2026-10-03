@@ -62,10 +62,27 @@ export interface Submission {
   totalScore: number;
   status: JudgeStatus;
   feedback?: string | null;
+  aiFeedback?: string | null;
   executionTimeMs?: number | null;
   memoryUsedKb?: number | null;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface AiReviewData {
+  summary: string;
+  timeComplexity: string;
+  spaceComplexity: string;
+  complexityExplanation?: string;
+  hints: string[];
+  edgeCases?: string[];
+  cleanCodeTips?: string[];
+  cleanCodeScore?: number;
+}
+
+export interface AiReviewResponse {
+  cached: boolean;
+  review: AiReviewData;
 }
 
 export interface SubmissionListItem extends Submission {

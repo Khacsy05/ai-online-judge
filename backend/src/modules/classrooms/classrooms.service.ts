@@ -643,4 +643,254 @@ export class ClassroomsService {
       assignments: assignmentProgress,
     };
   }
+
+  /**
+   * 📊 Báo cáo phân tích lớp học (Class Analytics Dashboard):
+   * - Thống kê tỷ lệ pass/fail của từng bài tập
+   * - Phát hiện bài tập sinh viên hay sai nhất (khó nhất)
+   * - Bảng điểm tổng hợp của toàn bộ sinh viên trong lớp để xem & xuất Excel / CSV
+   */
+  async getClassroomAnalytics(classroomId: string) {
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id: classroomId },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                studentCode: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+        assignments: {
+          include: {
+            problem: {
+              select: {
+                id: true,
+                title: true,
+                timeLimitMs: true,
+                memoryLimitMb: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!classroom) {
+      throw new NotFoundException(`Lớp học với ID "${classroomId}" không tồn tại.`);
+    }
+
+    const assignmentIds = classroom.assignments.map((a) => a.id);
+    const memberUserIds = classroom.members.map((m) => m.userId);
+
+    // Lấy tất cả bài nộp của lớp học này
+    const submissions = await this.prisma.submission.findMany({
+      where: {
+        assignmentId: { in: assignmentIds },
+      },
+      select: {
+        id: true,
+        userId: true,
+        assignmentId: true,
+        totalScore: true,
+        status: true,
+        executionTimeMs: true,
+        memoryUsedKb: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 1. Thống kê theo từng bài tập (Assignment Stats)
+    const assignmentStats = classroom.assignments.map((assign) => {
+      const assignSubs = submissions.filter((s) => s.assignmentId === assign.id);
+      const totalSubmissions = assignSubs.length;
+
+      // Sinh viên đã từng nộp bài này
+      const userSubsMap: Record<string, typeof assignSubs> = {};
+      assignSubs.forEach((s) => {
+        if (!userSubsMap[s.userId]) userSubsMap[s.userId] = [];
+        userSubsMap[s.userId].push(s);
+      });
+
+      const attemptedStudentsCount = Object.keys(userSubsMap).length;
+
+      // Số sinh viên giải thành công (AC hoặc >= 9 điểm)
+      let passedStudentsCount = 0;
+      let totalPassedSubmissions = 0;
+      let totalFailedSubmissions = 0;
+      let totalScoreSum = 0;
+
+      // Thống kê phân loại lỗi chi tiết (WA, TLE, RTE, CE...)
+      const errorBreakdown: Record<string, number> = {
+        WRONG_ANSWER: 0,
+        TIME_LIMIT_EXCEEDED: 0,
+        MEMORY_LIMIT_EXCEEDED: 0,
+        RUNTIME_ERROR: 0,
+        COMPILATION_ERROR: 0,
+      };
+
+      assignSubs.forEach((s) => {
+        if (s.status === JudgeStatus.ACCEPTED) {
+          totalPassedSubmissions++;
+        } else {
+          totalFailedSubmissions++;
+          if (errorBreakdown[s.status] !== undefined) {
+            errorBreakdown[s.status]++;
+          }
+        }
+      });
+
+      Object.values(userSubsMap).forEach((userSubs) => {
+        const bestScore = Math.max(...userSubs.map((s) => s.totalScore));
+        const hasAC = userSubs.some((s) => s.status === JudgeStatus.ACCEPTED);
+        if (hasAC || bestScore >= 10.0) {
+          passedStudentsCount++;
+        }
+        totalScoreSum += bestScore;
+      });
+
+      const avgScore =
+        attemptedStudentsCount > 0
+          ? Math.round((totalScoreSum / attemptedStudentsCount) * 10) / 10
+          : 0;
+
+      // Tỷ lệ Pass dựa trên số sinh viên đã làm
+      const passRate =
+        attemptedStudentsCount > 0
+          ? Math.round((passedStudentsCount / attemptedStudentsCount) * 1000) / 10
+          : 0;
+
+      const failRate =
+        attemptedStudentsCount > 0 ? Math.round((100 - passRate) * 10) / 10 : 0;
+
+      return {
+        assignmentId: assign.id,
+        problemId: assign.problem.id,
+        title: assign.problem.title,
+        deadline: assign.deadline,
+        totalSubmissions,
+        totalPassedSubmissions,
+        totalFailedSubmissions,
+        attemptedStudentsCount,
+        passedStudentsCount,
+        totalStudentsInClass: classroom.members.length,
+        passRate, // %
+        failRate, // %
+        avgScore, // thang điểm 10
+        errorBreakdown,
+      };
+    });
+
+    // Sắp xếp bài tập theo tỷ lệ SAI cao nhất (bài khó nhất lên đầu)
+    const mostDifficultAssignments = [...assignmentStats]
+      .filter((a) => a.attemptedStudentsCount > 0)
+      .sort((a, b) => b.failRate - a.failRate);
+
+    // 2. Bảng điểm toàn bộ sinh viên kèm điểm từng bài (Gradebook)
+    const studentGradebook = classroom.members.map((m, index) => {
+      const student = m.user;
+      const userSubs = submissions.filter((s) => s.userId === student.id);
+
+      const assignmentScores: Record<string, { score: number; status: string; attempts: number }> =
+        {};
+
+      let totalStudentScore = 0;
+      let solvedCount = 0;
+
+      classroom.assignments.forEach((assign) => {
+        const subsForAssign = userSubs.filter((s) => s.assignmentId === assign.id);
+        if (subsForAssign.length === 0) {
+          assignmentScores[assign.id] = { score: 0, status: 'NOT_SUBMITTED', attempts: 0 };
+        } else {
+          const bestScore = Math.max(...subsForAssign.map((s) => s.totalScore));
+          const isAC = subsForAssign.some((s) => s.status === JudgeStatus.ACCEPTED);
+          const latestStatus = subsForAssign[0].status;
+
+          assignmentScores[assign.id] = {
+            score: bestScore,
+            status: isAC ? 'ACCEPTED' : latestStatus,
+            attempts: subsForAssign.length,
+          };
+          totalStudentScore += bestScore;
+          if (isAC || bestScore >= 10.0) {
+            solvedCount++;
+          }
+        }
+      });
+
+      const maxPossibleClassScore = classroom.assignments.length * 10;
+      const progressPercent =
+        maxPossibleClassScore > 0
+          ? Math.round((totalStudentScore / maxPossibleClassScore) * 1000) / 10
+          : 0;
+
+      return {
+        userId: student.id,
+        studentCode: student.studentCode || '',
+        fullName: student.fullName,
+        email: student.email,
+        totalScore: Math.round(totalStudentScore * 10) / 10,
+        maxPossibleClassScore,
+        progressPercent,
+        solvedCount,
+        totalAssignments: classroom.assignments.length,
+        scores: assignmentScores,
+      };
+    });
+
+    // Sắp xếp theo tổng điểm giảm dần
+    studentGradebook.sort((a, b) => b.totalScore - a.totalScore);
+    const rankedGradebook = studentGradebook.map((s, idx) => ({
+      rank: idx + 1,
+      ...s,
+    }));
+
+    // 3. Tổng quan toàn lớp (Overview Stats)
+    const totalClassSubmissions = submissions.length;
+    const totalACSubmissions = submissions.filter(
+      (s) => s.status === JudgeStatus.ACCEPTED,
+    ).length;
+    const overallClassPassRate =
+      totalClassSubmissions > 0
+        ? Math.round((totalACSubmissions / totalClassSubmissions) * 1000) / 10
+        : 0;
+
+    return {
+      classroom: {
+        id: classroom.id,
+        code: classroom.code,
+        name: classroom.name,
+        totalMembers: classroom.members.length,
+        totalAssignments: classroom.assignments.length,
+      },
+      overview: {
+        totalSubmissions: totalClassSubmissions,
+        totalPassedSubmissions: totalACSubmissions,
+        overallClassPassRate,
+        averageClassScore:
+          studentGradebook.length > 0
+            ? Math.round(
+                (studentGradebook.reduce((sum, s) => sum + s.totalScore, 0) /
+                  studentGradebook.length) *
+                  10,
+              ) / 10
+            : 0,
+      },
+      assignments: classroom.assignments.map((a) => ({
+        id: a.id,
+        title: a.problem.title,
+      })),
+      assignmentStats,
+      mostDifficultAssignments: mostDifficultAssignments.slice(0, 3), // Top 3 bài sinh viên hay sai nhất
+      gradebook: rankedGradebook,
+    };
+  }
 }

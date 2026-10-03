@@ -112,6 +112,7 @@ model Submission {
   totalScore      Float              @default(0)
   executionTimeMs Int?
   memoryUsedKb    Int?
+  aiFeedback      String?            @db.Text
 
   user            User               @relation(fields: [userId], references: [id])
   assignment      Assignment         @relation(fields: [assignmentId], references: [id], onDelete: Cascade)

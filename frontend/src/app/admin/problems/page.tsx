@@ -124,6 +124,9 @@ export default function AdminProblemsPage() {
     }
   };
 
+  // State tìm kiếm cục bộ để debounce
+  const [searchInput, setSearchInput] = useState(searchQuery);
+
   // Cuộn lên đầu trang khi chuyển trang
   useEffect(() => {
     if (isFirstRender.current) {
@@ -133,6 +136,7 @@ export default function AdminProblemsPage() {
     scrollToTop();
   }, [currentPage]);
 
+  // Tải danh sách bài tập khi trang, pageSize hoặc searchQuery thay đổi
   useEffect(() => {
     const cacheKey = `${searchQuery.trim()}_${currentPage}_${pageSize}`;
     const isCached = !!useAdminStore.getState().problemsPageCache[cacheKey];
@@ -146,18 +150,22 @@ export default function AdminProblemsPage() {
       .finally(() => {
         setIsTableLoading(false);
       });
-  }, [currentPage, pageSize]);
+  }, [currentPage, pageSize, searchQuery]);
 
-  // Khi tìm kiếm thay đổi, reset về trang 1 và tải
+  // Debounce tìm kiếm 350ms (chỉ chạy khi người dùng thực sự thay đổi searchInput)
   useEffect(() => {
     const timer = setTimeout(() => {
-      setIsTableLoading(true);
-      fetchProblems({ page: 1, limit: pageSize, search: searchQuery, force: true })
-        .finally(() => {
-          setTimeout(() => setIsTableLoading(false), 200);
-        });
-    }, 300);
+      if (searchInput !== searchQuery) {
+        setSearchQuery(searchInput);
+        setCurrentPage(1);
+      }
+    }, 350);
     return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Đồng bộ searchInput nếu store bị đổi từ bên ngoài
+  useEffect(() => {
+    setSearchInput(searchQuery);
   }, [searchQuery]);
 
   // 2. Mở Modal Tạo mới
@@ -239,6 +247,19 @@ export default function AdminProblemsPage() {
     setFormTestCases((prev) =>
       prev.map((tc, i) => (i === index ? { ...tc, [field]: value } : tc))
     );
+  };
+
+  // Reset toàn bộ dữ liệu tệp code mẫu và kết quả của modal sinh test case biên
+  const resetBoundaryModalState = () => {
+    setBoundarySolutionCode("");
+    setBoundaryFileName("");
+    setBoundaryLanguage("python");
+    setBoundaryNumCases(5);
+    setBoundaryResult(null);
+    setBoundaryStep("input");
+    if (boundaryFileInputRef.current) {
+      boundaryFileInputRef.current.value = "";
+    }
   };
 
   // Xử lý chọn file code mẫu giải thuật
@@ -338,7 +359,7 @@ export default function AdminProblemsPage() {
     }
 
     setShowBoundaryModal(false);
-    setBoundaryStep("input");
+    resetBoundaryModalState();
   };
 
   // 5. Submit Form Tạo / Sửa
@@ -445,8 +466,8 @@ export default function AdminProblemsPage() {
           <input
             type="text"
             placeholder="Tìm theo tiêu đề bài tập..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
           />
         </div>
@@ -795,8 +816,7 @@ export default function AdminProblemsPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setBoundaryStep("input");
-                            setBoundaryResult(null);
+                            resetBoundaryModalState();
                             setShowBoundaryModal(true);
                           }}
                           className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-600 to-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:from-purple-700 hover:to-indigo-700 transition-all cursor-pointer"
@@ -1064,7 +1084,10 @@ export default function AdminProblemsPage() {
               </div>
 
               <button
-                onClick={() => setShowBoundaryModal(false)}
+                onClick={() => {
+                  setShowBoundaryModal(false);
+                  resetBoundaryModalState();
+                }}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
               >
                 <X size={18} />
@@ -1087,35 +1110,18 @@ export default function AdminProblemsPage() {
                     </ol>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Ngôn ngữ của Code mẫu
-                      </label>
-                      <select
-                        value={boundaryLanguage}
-                        onChange={(e) => setBoundaryLanguage(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      >
-                        <option value="python">Python 3 (ast.parse)</option>
-                        <option value="cpp">C++ (Pattern Extractor)</option>
-                        <option value="java">Java (Pattern Extractor)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Số lượng Test Case Biên mong muốn
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={15}
-                        value={boundaryNumCases}
-                        onChange={(e) => setBoundaryNumCases(Number(e.target.value))}
-                        className="w-full rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Số lượng Test Case Biên mong muốn sinh tự động
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={15}
+                      value={boundaryNumCases}
+                      onChange={(e) => setBoundaryNumCases(Number(e.target.value))}
+                      className="w-full sm:max-w-xs rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                    />
                   </div>
 
                   <div>
@@ -1162,9 +1168,14 @@ export default function AdminProblemsPage() {
                               <FileText size={15} />
                             </div>
                             <div>
-                              <p className="font-semibold text-slate-800 text-xs truncate max-w-[280px] sm:max-w-md">
-                                {boundaryFileName || "Tệp mã nguồn giải mẫu"}
-                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-semibold text-slate-800 text-xs truncate max-w-[240px] sm:max-w-xs">
+                                  {boundaryFileName || "Tệp mã nguồn giải mẫu"}
+                                </p>
+                                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-indigo-700">
+                                  {boundaryLanguage}
+                                </span>
+                              </div>
                               <p className="text-[10px] text-slate-400">
                                 {boundarySolutionCode.split("\n").length} dòng • {new Blob([boundarySolutionCode]).size} bytes
                               </p>
@@ -1337,7 +1348,10 @@ export default function AdminProblemsPage() {
                 <>
                   <button
                     type="button"
-                    onClick={() => setShowBoundaryModal(false)}
+                    onClick={() => {
+                      setShowBoundaryModal(false);
+                      resetBoundaryModalState();
+                    }}
                     className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                   >
                     Hủy
