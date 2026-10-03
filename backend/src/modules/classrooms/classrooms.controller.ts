@@ -78,4 +78,10 @@ export class ClassroomsController {
   getMyProgress(@Param('id') id: string, @Req() req: any) {
     return this.classroomsService.getMyClassroomProgress(id, req.user.id);
   }
+
+  @Get(':id/analytics')
+  @UseGuards(JwtAuthGuard)
+  getAnalytics(@Param('id') id: string) {
+    return this.classroomsService.getClassroomAnalytics(id);
+  }
 }

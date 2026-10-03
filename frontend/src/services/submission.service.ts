@@ -5,6 +5,7 @@ import {
   SubmissionDetailResponse,
   SubmissionQuery,
   PaginatedSubmissionsResponse,
+  AiReviewResponse,
 } from "@/types/submission";
 
 /**
@@ -29,7 +30,7 @@ export async function submitCode(
 }
 
 /**
- * Lấy danh sách các bài đã nộp kèm phân trang, tìm kiếm và lọc từ backend
+ * Lấy danh sách các bàiđ ã nộp kèm phân trang, tìm kiếm và lọc từ backend
  * @param query Tham số lọc (userId, assignmentId, search, status, language, page, limit)
  */
 export async function getSubmissions(
@@ -67,11 +68,28 @@ export async function cancelSubmission(
   return response.data;
 }
 
+/**
+ * Lấy hoặc tạo nhận xét của Trợ giảng AI cho bài nộp
+ * @param id ID của bài nộp
+ * @param refresh Bắt buộc phân tích lại (bỏ qua cache)
+ */
+export async function getAiReview(
+  id: string,
+  refresh = false
+): Promise<AiReviewResponse> {
+  const response = await apiClient.post<AiReviewResponse>(
+    `/submissions/${id}/ai-review`,
+    { refresh }
+  );
+  return response.data;
+}
+
 export const submissionService = {
   submitCode,
   getSubmissions,
   getSubmissionById,
   cancelSubmission,
+  getAiReview,
 };
 
-export default submissionService;
+export default submissionService;

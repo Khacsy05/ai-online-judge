@@ -210,4 +210,76 @@ export async function getClassroomLeaderboard(classroomId: string, query?: Class
     console.error("Lỗi khi lấy bảng xếp hạng lớp học:", error);
     throw error;
   }
+}
+
+export interface AssignmentStatItem {
+  assignmentId: string;
+  problemId: string;
+  title: string;
+  deadline: string;
+  totalSubmissions: number;
+  totalPassedSubmissions: number;
+  totalFailedSubmissions: number;
+  attemptedStudentsCount: number;
+  passedStudentsCount: number;
+  totalStudentsInClass: number;
+  passRate: number;
+  failRate: number;
+  avgScore: number;
+  errorBreakdown: {
+    WRONG_ANSWER: number;
+    TIME_LIMIT_EXCEEDED: number;
+    MEMORY_LIMIT_EXCEEDED: number;
+    RUNTIME_ERROR: number;
+    COMPILATION_ERROR: number;
+  };
+}
+
+export interface StudentGradeItem {
+  rank: number;
+  userId: string;
+  studentCode: string;
+  fullName: string;
+  email: string;
+  totalScore: number;
+  maxPossibleClassScore: number;
+  progressPercent: number;
+  solvedCount: number;
+  totalAssignments: number;
+  scores: Record<string, { score: number; status: string; attempts: number }>;
+}
+
+export interface ClassroomAnalyticsResponse {
+  classroom: {
+    id: string;
+    code: string;
+    name: string;
+    totalMembers: number;
+    totalAssignments: number;
+  };
+  overview: {
+    totalSubmissions: number;
+    totalPassedSubmissions: number;
+    overallClassPassRate: number;
+    averageClassScore: number;
+  };
+  assignments: Array<{
+    id: string;
+    title: string;
+  }>;
+  assignmentStats: AssignmentStatItem[];
+  mostDifficultAssignments: AssignmentStatItem[];
+  gradebook: StudentGradeItem[];
+}
+
+/**
+ * 📊 Lấy báo cáo phân tích toàn diện lớp học (Analytics & Gradebook)
+ */
+export async function getClassroomAnalytics(
+  classroomId: string
+): Promise<ClassroomAnalyticsResponse> {
+  const response = await apiClient.get<ClassroomAnalyticsResponse>(
+    `/classrooms/${classroomId}/analytics`
+  );
+  return response.data;
 }

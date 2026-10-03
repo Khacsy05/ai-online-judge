@@ -24,6 +24,13 @@ import {
   Clock,
   FileCode2,
   BookmarkCheck,
+  BarChart3,
+  Download,
+  TrendingUp,
+  TrendingDown,
+  Percent,
+  Award,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   getClassList,
@@ -37,9 +44,11 @@ import {
   getAvailableStudents,
   assignProblemToClass,
   removeAssignmentFromClass,
+  getClassroomAnalytics,
   ClassroomItem,
   ClassroomDetailResponse,
   AvailableStudentItem,
+  ClassroomAnalyticsResponse,
 } from "@/services/classroom.service";
 import { getProblems, ProblemItem } from "@/services/problem.service";
 import { toast } from "sonner";
@@ -96,6 +105,76 @@ export default function AdminClassroomsPage() {
   // Modal State: Xóa lớp học
   const [deleteTargetClass, setDeleteTargetClass] = useState<ClassroomItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Modal State: Báo cáo phân tích lớp học (Analytics Dashboard & Gradebook)
+  const [analyticsModalClassId, setAnalyticsModalClassId] = useState<string | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<ClassroomAnalyticsResponse | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "problems" | "gradebook">("overview");
+
+  const handleOpenAnalytics = async (classroomId: string) => {
+    setAnalyticsModalClassId(classroomId);
+    setAnalyticsTab("overview");
+    try {
+      setLoadingAnalytics(true);
+      const data = await getClassroomAnalytics(classroomId);
+      setAnalyticsData(data);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Không thể tải báo cáo phân tích lớp học.");
+      setAnalyticsModalClassId(null);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  // Xuất bảng điểm lớp học ra file CSV
+  const handleExportCSV = () => {
+    if (!analyticsData) return;
+    const { classroom, assignments, gradebook } = analyticsData;
+
+    // Header: Rank, MSSV, Họ và tên, Email, [Từng bài tập], Tổng điểm, Tỷ lệ hoàn thành
+    const headers = [
+      "Xếp hạng",
+      "Mã sinh viên",
+      "Họ và tên",
+      "Email",
+      ...assignments.map((a) => `"${a.title.replace(/"/g, '""')}"`),
+      "Tổng điểm",
+      "Tiến độ (%)",
+    ];
+
+    const rows = gradebook.map((s) => {
+      const assignmentCols = assignments.map((a) => {
+        const item = s.scores[a.id];
+        return item ? item.score : 0;
+      });
+
+      return [
+        s.rank,
+        `"${s.studentCode}"`,
+        `"${s.fullName.replace(/"/g, '""')}"`,
+        `"${s.email}"`,
+        ...assignmentCols,
+        s.totalScore,
+        `${s.progressPercent}%`,
+      ].join(",");
+    });
+
+    // Thêm BOM UTF-8 (\uFEFF) để Excel mở tiếng Việt không bị lỗi font
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `Bang_Diem_Lop_${classroom.code}_${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Đã xuất bảng điểm lớp học ra file CSV thành công!");
+  };
 
   useEffect(() => {
     fetchClassrooms(false);
@@ -568,13 +647,20 @@ export default function AdminClassroomsPage() {
                   </div>
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-slate-100">
+                <div className="mt-5 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleOpenDetail(c.id)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all cursor-pointer"
                   >
                     <Users size={14} />
-                    <span>Xem & Phân công SV</span>
+                    <span>Thành viên & Bài tập</span>
+                  </button>
+                  <button
+                    onClick={() => handleOpenAnalytics(c.id)}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <BarChart3 size={14} className="text-emerald-700" />
+                    <span>Báo cáo & Điểm số</span>
                   </button>
                 </div>
               </div>
@@ -1202,6 +1288,393 @@ export default function AdminClassroomsPage() {
               >
                 {deleting && <Loader2 size={13} className="animate-spin" />}
                 <span>Xác nhận xóa</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL 4: BÁO CÁO PHÂN TÍCH LỚP HỌC & BẢNG ĐIỂM ===================== */}
+      {analyticsModalClassId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 bg-gradient-to-r from-emerald-50/40 via-white to-white">
+              <div className="flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-200">
+                  <BarChart3 size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
+                      {analyticsData?.classroom.code || "..."}
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900">
+                      {analyticsData?.classroom.name || "Báo cáo phân tích lớp học"}
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Thống kê tỷ lệ hoàn thành, phát hiện bài tập khó và xuất bảng điểm lớp học.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {analyticsData && (
+                  <button
+                    onClick={handleExportCSV}
+                    className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer"
+                    title="Tải bảng điểm Excel / CSV"
+                  >
+                    <Download size={14} />
+                    <span className="hidden sm:inline">Xuất bảng điểm CSV / Excel</span>
+                    <span className="sm:hidden">Xuất file</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setAnalyticsModalClassId(null)}
+                  className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Tabs Điều Hướng Modal Analytics */}
+            <div className="flex items-center border-b border-slate-100 px-6 pt-2 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setAnalyticsTab("overview")}
+                className={`flex items-center gap-2 border-b-2 py-2.5 px-4 text-xs font-semibold transition-all cursor-pointer ${
+                  analyticsTab === "overview"
+                    ? "border-emerald-600 text-emerald-700 bg-white rounded-t-lg shadow-2xs"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <TrendingUp size={14} />
+                <span>Tổng quan & Bài tập khó nhất</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalyticsTab("problems")}
+                className={`flex items-center gap-2 border-b-2 py-2.5 px-4 text-xs font-semibold transition-all cursor-pointer ${
+                  analyticsTab === "problems"
+                    ? "border-emerald-600 text-emerald-700 bg-white rounded-t-lg shadow-2xs"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Percent size={14} />
+                <span>Tỷ lệ Pass/Fail từng bài ({analyticsData?.assignmentStats.length || 0})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalyticsTab("gradebook")}
+                className={`flex items-center gap-2 border-b-2 py-2.5 px-4 text-xs font-semibold transition-all cursor-pointer ${
+                  analyticsTab === "gradebook"
+                    ? "border-emerald-600 text-emerald-700 bg-white rounded-t-lg shadow-2xs"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Award size={14} />
+                <span>Bảng điểm chi tiết ({analyticsData?.gradebook.length || 0} SV)</span>
+              </button>
+            </div>
+
+            {/* Body Nội Dung Modal (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-slate-800">
+              {loadingAnalytics ? (
+                <div className="flex h-64 flex-col items-center justify-center gap-2">
+                  <Loader2 size={32} className="animate-spin text-emerald-600" />
+                  <p className="text-xs text-slate-500 font-medium">Đang tính toán phân tích dữ liệu lớp học...</p>
+                </div>
+              ) : !analyticsData ? (
+                <div className="p-8 text-center text-slate-400 text-sm">
+                  Không có dữ liệu phân tích.
+                </div>
+              ) : (
+                <>
+                  {/* TAB 1: TỔNG QUAN & BÀI TẬP KHÓ NHẤT */}
+                  {analyticsTab === "overview" && (
+                    <div className="space-y-6">
+                      {/* 4 Thẻ chỉ số tổng quan */}
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                            Tổng bài nộp
+                          </span>
+                          <div className="text-2xl font-bold text-slate-900">
+                            {analyticsData.overview.totalSubmissions}
+                          </div>
+                          <span className="text-[11px] text-slate-500 mt-1 block">
+                            Từ {analyticsData.classroom.totalMembers} sinh viên
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-4 shadow-2xs">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block mb-1">
+                            Tỷ lệ Pass toàn lớp
+                          </span>
+                          <div className="text-2xl font-bold text-emerald-700">
+                            {analyticsData.overview.overallClassPassRate}%
+                          </div>
+                          <span className="text-[11px] text-emerald-600 mt-1 block">
+                            {analyticsData.overview.totalPassedSubmissions} bài nộp AC
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4 shadow-2xs">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 block mb-1">
+                            Điểm trung bình
+                          </span>
+                          <div className="text-2xl font-bold text-blue-700">
+                            {analyticsData.overview.averageClassScore}{" "}
+                            <span className="text-xs text-blue-500 font-normal">
+                              / {analyticsData.classroom.totalAssignments * 10}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-blue-600 mt-1 block">
+                            Toàn bộ {analyticsData.classroom.totalAssignments} bài tập
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-purple-200 bg-purple-50/30 p-4 shadow-2xs">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700 block mb-1">
+                            Quy mô lớp học
+                          </span>
+                          <div className="text-2xl font-bold text-purple-700">
+                            {analyticsData.classroom.totalMembers}
+                          </div>
+                          <span className="text-[11px] text-purple-600 mt-1 block">
+                            Sinh viên chính thức
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Top bài tập sinh viên hay sai nhất (Khó nhất) */}
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50/20 p-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="flex size-7 items-center justify-center rounded-lg bg-rose-100 text-rose-700">
+                            <TrendingDown size={16} />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                              Top bài tập sinh viên hay sai nhất (Cần giảng viên lưu ý hỗ trợ)
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              Dựa trên tỷ lệ nộp bài thất bại (Wrong Answer, TLE, Runtime Error) của sinh viên.
+                            </p>
+                          </div>
+                        </div>
+
+                        {analyticsData.mostDifficultAssignments.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic">
+                            Chưa có bài tập nào có dữ liệu nộp bài để thống kê độ khó.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {analyticsData.mostDifficultAssignments.map((item, idx) => (
+                              <div
+                                key={item.assignmentId}
+                                className="rounded-xl border border-rose-200 bg-white p-3.5 shadow-2xs flex flex-col justify-between"
+                              >
+                                <div>
+                                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
+                                      Hạng {idx + 1} khó nhất
+                                    </span>
+                                    <span className="text-xs font-bold text-rose-700 font-mono">
+                                      Sai: {item.failRate}%
+                                    </span>
+                                  </div>
+                                  <h4 className="text-xs font-bold text-slate-900 line-clamp-2">
+                                    {item.title}
+                                  </h4>
+                                </div>
+
+                                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                                  <span>{item.passedStudentsCount}/{item.attemptedStudentsCount} SV pass</span>
+                                  <span className="font-semibold text-slate-700">ĐTB: {item.avgScore}/10</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 2: THỐNG KÊ CHI TIẾT TỪNG BÀI TẬP */}
+                  {analyticsTab === "problems" && (
+                    <div className="space-y-4">
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                            <tr>
+                              <th className="py-3 px-4">Bài tập</th>
+                              <th className="py-3 px-3 text-center">Tổng lượt nộp</th>
+                              <th className="py-3 px-3 text-center">Số SV đã làm</th>
+                              <th className="py-3 px-3 text-center">Tỷ lệ Pass</th>
+                              <th className="py-3 px-3 text-center">Tỷ lệ Fail</th>
+                              <th className="py-3 px-3 text-center">Điểm TB</th>
+                              <th className="py-3 px-4">Phân bố lỗi thường gặp</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {analyticsData.assignmentStats.map((item) => (
+                              <tr key={item.assignmentId} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs truncate">
+                                  {item.title}
+                                </td>
+                                <td className="py-3.5 px-3 text-center font-mono">
+                                  {item.totalSubmissions}
+                                </td>
+                                <td className="py-3.5 px-3 text-center text-slate-600">
+                                  {item.attemptedStudentsCount} / {item.totalStudentsInClass}
+                                </td>
+                                <td className="py-3.5 px-3 text-center">
+                                  <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                                    {item.passRate}%
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-3 text-center">
+                                  <span className="inline-flex items-center rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-xs font-bold text-rose-700">
+                                    {item.failRate}%
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-3 text-center font-bold text-slate-800">
+                                  {item.avgScore}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                    {item.errorBreakdown.WRONG_ANSWER > 0 && (
+                                      <span className="rounded bg-rose-100 text-rose-700 px-1.5 py-0.5 font-medium">
+                                        WA: {item.errorBreakdown.WRONG_ANSWER}
+                                      </span>
+                                    )}
+                                    {item.errorBreakdown.TIME_LIMIT_EXCEEDED > 0 && (
+                                      <span className="rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 font-medium">
+                                        TLE: {item.errorBreakdown.TIME_LIMIT_EXCEEDED}
+                                      </span>
+                                    )}
+                                    {item.errorBreakdown.RUNTIME_ERROR > 0 && (
+                                      <span className="rounded bg-orange-100 text-orange-700 px-1.5 py-0.5 font-medium">
+                                        RTE: {item.errorBreakdown.RUNTIME_ERROR}
+                                      </span>
+                                    )}
+                                    {item.errorBreakdown.COMPILATION_ERROR > 0 && (
+                                      <span className="rounded bg-slate-200 text-slate-700 px-1.5 py-0.5 font-medium">
+                                        CE: {item.errorBreakdown.COMPILATION_ERROR}
+                                      </span>
+                                    )}
+                                    {item.totalFailedSubmissions === 0 && (
+                                      <span className="text-emerald-600 font-medium text-[11px]">
+                                        100% Hoàn hảo
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: BẢNG ĐIỂM CHI TIẾT (GRADEBOOK) */}
+                  {analyticsTab === "gradebook" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500 font-medium">
+                          Bảng điểm tự động cập nhật theo điểm cao nhất của từng sinh viên.
+                        </span>
+                        <button
+                          onClick={handleExportCSV}
+                          className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                        >
+                          <Download size={13} /> Tải file CSV / Excel
+                        </button>
+                      </div>
+
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200 max-h-96 overflow-y-auto">
+                        <table className="w-full text-left text-xs whitespace-nowrap">
+                          <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 sticky top-0 z-10">
+                            <tr>
+                              <th className="py-3 px-3 text-center">Hạng</th>
+                              <th className="py-3 px-3">Mã SV</th>
+                              <th className="py-3 px-4">Họ và tên</th>
+                              {analyticsData.assignments.map((a) => (
+                                <th key={a.id} className="py-3 px-3 text-center max-w-[120px] truncate" title={a.title}>
+                                  {a.title}
+                                </th>
+                              ))}
+                              <th className="py-3 px-3 text-center bg-slate-100 font-extrabold text-slate-800">Tổng điểm</th>
+                              <th className="py-3 px-3 text-center">Tiến độ</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {analyticsData.gradebook.map((student) => (
+                              <tr key={student.userId} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-3 px-3 text-center font-bold text-slate-700 font-mono">
+                                  #{student.rank}
+                                </td>
+                                <td className="py-3 px-3 font-mono font-semibold text-blue-700">
+                                  {student.studentCode || "-"}
+                                </td>
+                                <td className="py-3 px-4 font-semibold text-slate-900">
+                                  {student.fullName}
+                                </td>
+                                {analyticsData.assignments.map((a) => {
+                                  const cell = student.scores[a.id];
+                                  const score = cell ? cell.score : 0;
+                                  const isAC = cell?.status === "ACCEPTED";
+                                  return (
+                                    <td key={a.id} className="py-3 px-3 text-center font-mono">
+                                      {cell?.status === "NOT_SUBMITTED" ? (
+                                        <span className="text-slate-300">-</span>
+                                      ) : (
+                                        <span
+                                          className={`font-semibold ${
+                                            isAC || score >= 10
+                                              ? "text-emerald-700"
+                                              : score > 0
+                                              ? "text-amber-700"
+                                              : "text-rose-600"
+                                          }`}
+                                        >
+                                          {score}
+                                        </span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                                <td className="py-3 px-3 text-center font-mono font-bold text-slate-900 bg-slate-50">
+                                  {student.totalScore}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <span className="font-semibold text-slate-700">{student.progressPercent}%</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-b-2xl">
+              <span className="text-xs text-slate-400">
+                AI Online Judge Analytics Suite
+              </span>
+              <button
+                onClick={() => setAnalyticsModalClassId(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Đóng
               </button>
             </div>
           </div>

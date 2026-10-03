@@ -160,6 +160,9 @@ export default function AdminSubmissionsPage() {
     adminSubmissionClassroomId,
     loadingAdminSubmissions,
     fetchAdminSubmissions,
+    classrooms,
+    loadingClassrooms,
+    fetchClassrooms,
     setCurrentAdminSubmissionPage,
     setAdminSubmissionPageSize,
     setAdminSubmissionSearch,
@@ -168,10 +171,6 @@ export default function AdminSubmissionsPage() {
     setAdminSubmissionClassroomId,
     updateAdminSubmissionRealtime,
   } = useAdminStore();
-
-  // Danh sách các lớp học để hiển thị tabs / cards lựa chọn
-  const [classList, setClassList] = useState<ClassroomItem[]>([]);
-  const [loadingClassrooms, setLoadingClassrooms] = useState(false);
 
   // Local state cho ô tìm kiếm để debounce không bị giật lag
   const [searchInput, setSearchInput] = useState(adminSubmissionSearch);
@@ -194,14 +193,10 @@ export default function AdminSubmissionsPage() {
     }
   };
 
-  // 1. Tải danh sách lớp học
+  // 1. Tải danh sách lớp học nếu chưa có trong cache Zustand
   useEffect(() => {
-    setLoadingClassrooms(true);
-    getClassList()
-      .then((data) => setClassList(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Lỗi lấy danh sách lớp học:", err))
-      .finally(() => setLoadingClassrooms(false));
-  }, []);
+    fetchClassrooms(false);
+  }, [fetchClassrooms]);
 
   // Cuộn lên đầu trang khi chuyển trang
   useEffect(() => {
@@ -318,8 +313,8 @@ export default function AdminSubmissionsPage() {
   // Lớp học đang được chọn
   const activeClassroom = useMemo(() => {
     if (!adminSubmissionClassroomId) return null;
-    return classList.find((c) => c.id === adminSubmissionClassroomId) || null;
-  }, [classList, adminSubmissionClassroomId]);
+    return classrooms.find((c) => c.id === adminSubmissionClassroomId) || null;
+  }, [classrooms, adminSubmissionClassroomId]);
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
@@ -407,7 +402,7 @@ export default function AdminSubmissionsPage() {
           </button>
 
           {/* Danh sách từng lớp */}
-          {classList.map((cls) => {
+          {classrooms.map((cls) => {
             const isSelected = adminSubmissionClassroomId === cls.id;
             return (
               <button
@@ -588,7 +583,7 @@ export default function AdminSubmissionsPage() {
 
                   const classroomName =
                     sub.assignment?.classroom?.name ||
-                    classList.find((c) => c.id === sub.assignment?.classroomId)?.name ||
+                    classrooms.find((c) => c.id === sub.assignment?.classroomId)?.name ||
                     "-";
 
                   return (

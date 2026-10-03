@@ -47,8 +47,9 @@ export class SubmissionsController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.submissionsService.findOne(id);
+  @UseGuards(JwtAuthGuard)
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    return this.submissionsService.findOne(id, req.user);
   }
 
   @Post(':id/cancel')
@@ -56,6 +57,16 @@ export class SubmissionsController {
   @Roles('STUDENT')
   async cancel(@Param('id') id: string, @Req() req: any) {
     return this.submissionsService.cancel(id, req.user.id);
+  }
+
+  @Post(':id/ai-review')
+  @UseGuards(JwtAuthGuard)
+  async getAiReview(
+    @Param('id') id: string,
+    @Body('refresh') refresh: boolean,
+    @Req() req: any,
+  ) {
+    return this.submissionsService.getOrGenerateAiReview(id, req.user, !!refresh);
   }
 }
 

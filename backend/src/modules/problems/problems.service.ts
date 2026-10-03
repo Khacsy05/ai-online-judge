@@ -396,10 +396,20 @@ export class ProblemsService {
       `AST hoàn tất: phát hiện ${astReport?.conditions?.length || 0} điều kiện rẽ nhánh và ${astReport?.special_constants?.length || 0} mốc biên.`,
     );
 
-    // 2. Định dạng Prompt kèm tri thức trích xuất từ AST (Context Enrichment)
+    // 2. Định dạng Prompt kèm kiểm tra tính tương thích đề bài & mã nguồn
     const schema = {
       type: 'OBJECT',
       properties: {
+        isSolutionMatchingProblem: {
+          type: 'BOOLEAN',
+          description:
+            'Đánh giá mã nguồn giải mẫu có thực sự giải quyết bài toán được nêu trong đề bài hay không. Đặt false nếu mã nguồn giải bài toán hoàn toàn khác (ví dụ: đề bài yêu cầu số nguyên tố nhưng code giải Fibonacci, sắp xếp, tính tổng...).',
+        },
+        mismatchReason: {
+          type: 'STRING',
+          description:
+            'Giải thích chi tiết tại sao mã nguồn không khớp với đề bài (nếu isSolutionMatchingProblem = false).',
+        },
         cases: {
           type: 'ARRAY',
           items: {
@@ -414,12 +424,14 @@ export class ProblemsService {
           },
         },
       },
-      required: ['cases'],
+      required: ['isSolutionMatchingProblem', 'cases'],
     };
 
     const prompt = `
-Bạn là một chuyên gia Kiểm thử phần mềm (QA / Software Testing Engineer) cho hệ thống Online Judge.
-Nhiệm vụ của bạn là sinh ra các ca kiểm thử BIÊN (Boundary Value Test Cases / Corner Cases / Edge Cases) chất lượng cao để phát hiện các lỗi lập trình tiềm ẩn của sinh viên (như lỗi sai dấu < vs <=, bỏ sót N=0, mảng rỗng, tràn số 32-bit, số âm, phần tử trùng lặp).
+Bạn là một chuyên gia Kiểm thử phần mềm (QA / Software Testing Engineer) và Giám định thuật toán cho hệ thống Online Judge.
+Nhiệm vụ của bạn là:
+BƯỚC 1: Thẩm định xem "Mã nguồn giải mẫu" có thực sự giải quyết bài toán trong "Thông tin đề bài" hay không.
+BƯỚC 2: Nếu khớp, sinh ra các ca kiểm thử BIÊN (Boundary Value Test Cases / Corner Cases / Edge Cases) chất lượng cao. Nếu KHÔNG KHỚP, từ chối và giải thích rõ ràng.
 
 === 1. THÔNG TIN ĐỀ BÀI (RẤT QUAN TRỌNG) ===
 - Tiêu đề bài tập: ${problemTitle}
@@ -438,25 +450,53 @@ ${solutionCode}
 ${JSON.stringify(astReport?.conditions || [], null, 2)}
 - Các hằng số biên quan trọng trong code: ${JSON.stringify(astReport?.special_constants || [0, 1, -1])}
 
-=== 4. QUY TẮC BẮT BUỘC KHI SINH TEST CASE ===
-1. ĐỌC KỸ MÔ TẢ ĐỀ BÀI: Phân tích kỹ xem đề bài yêu cầu nhập (stdin) như thế nào (Ví dụ: dòng 1 là N, dòng 2 là dãy số cách nhau dấu cách; hoặc nhiều dòng; định dạng chuỗi hay số...).
-2. ĐỐI CHIẾU VỚI CÁCH ĐỌC DỮ LIỆU CỦA CODE MẪU: Xem hàm đọc dữ liệu trong code mẫu (input(), cin, Scanner, sys.stdin...) để đảm bảo input bạn sinh ra KHÔNG LÀM CODE MẪU BỊ LỖI RUNTIME (ValueError, NoSuchElementException, EOFError).
-3. ĐÚNG SỐ LƯỢNG: Sinh đúng ${numCases} bộ test case BIÊN quan trọng và bao phủ tốt nhất.
-4. BAO PHỦ CÁC MỐC BIÊN (BOUNDARY VALUE ANALYSIS):
+=== 4. QUY TẮC BẮT BUỘC KHI PHÂN TÍCH ===
+1. [QUAN TRỌNG NHẤT - KIỂM ĐỊNH MÃ NGUỒN]:
+   - Phân tích mục đích của mã nguồn giải mẫu: Mã nguồn này đang giải bài toán gì?
+   - So sánh với tiêu đề và mô tả đề bài: Mã nguồn có thực hiện đúng thuật toán/yêu cầu đề bài không?
+   - NẾU MÃ NGUỒN GIẢI BÀI TOÁN HOÀN TOÀN KHÁC (ví dụ: đề bài là "Kiểm tra số nguyên tố" nhưng code lại giải "Dãy Fibonacci", "Đảo ngược chuỗi", "Tìm đường đi Dijkstra"...):
+     -> BẮT BUỘC ĐẶT \`isSolutionMatchingProblem: false\`
+     -> Cung cấp \`mismatchReason\` rõ ràng, ví dụ: "Mã nguồn đang giải bài toán tính số Fibonacci, trong khi đề bài yêu cầu Kiểm tra số nguyên tố. Vui lòng cung cấp mã nguồn chính xác của bài toán này."
+     -> Để mảng \`cases: []\` rỗng.
+   - NẾU MÃ NGUỒN CHÍNH XÁC LÀ LỜI GIẢI CỦA ĐỀ BÀI:
+     -> Đặt \`isSolutionMatchingProblem: true\`.
+     -> Tiến hành sinh test case theo các quy tắc dưới đây.
+
+2. ĐỌC KỸ MÔ TẢ ĐỀ BÀI: Phân tích kỹ xem đề bài yêu cầu nhập (stdin) như thế nào (Ví dụ: dòng 1 là N, dòng 2 là dãy số cách nhau dấu cách; hoặc nhiều dòng; định dạng chuỗi hay số...).
+3. ĐỐI CHIẾU VỚI CÁCH ĐỌC DỮ LIỆU CỦA CODE MẪU: Xem hàm đọc dữ liệu trong code mẫu (input(), cin, Scanner, sys.stdin...) để đảm bảo input bạn sinh ra KHÔNG LÀM CODE MẪU BỊ LỖI RUNTIME (ValueError, NoSuchElementException, EOFError).
+4. ĐÚNG SỐ LƯỢNG: Sinh đúng ${numCases} bộ test case BIÊN quan trọng và bao phủ tốt nhất.
+5. BAO PHỦ CÁC MỐC BIÊN (BOUNDARY VALUE ANALYSIS):
    - Biên dưới cùng (Min hợp lệ của N, mảng 0 hoặc 1 phần tử nếu đề bài cho phép).
    - Biên trên cùng (Max của N theo ràng buộc đề bài, hoặc cận cực đại).
    - Các giá trị âm, 0, số cực lớn, hoặc phần tử giống hệt nhau nếu đề bài cho phép.
    - Các nhánh rẽ nhánh mà cây AST đã phát hiện.
-5. CHUỖI \`input\` HOÀN CHỈNH: Chuỗi \`input\` (stdin) phải chứa đầy đủ các dòng, đúng khoảng trắng, kết thúc bằng ký tự xuống dòng '\\n'.
-6. Đặt tên \`name\` và \`description\` rõ ràng giải thích tại sao test case này lại là ca kiểm thử biên quan trọng.
+6. CHUỖI \`input\` HOÀN CHỈNH: Chuỗi \`input\` (stdin) phải chứa đầy đủ các dòng, đúng khoảng trắng, kết thúc bằng ký tự xuống dòng '\\n'.
+7. Đặt tên \`name\` và \`description\` rõ ràng giải thích tại sao test case này lại là ca kiểm thử biên quan trọng.
 `;
 
     const aiResponse = await this.aiService.generateJson<{
+      isSolutionMatchingProblem: boolean;
+      mismatchReason?: string;
       cases: Array<{ name: string; category?: string; description?: string; input: string }>;
     }>(prompt, schema);
 
+    // 🛡️ BẢO VỆ CHẶNG ĐẦU: Nếu code mẫu không khớp với đề bài, từ chối ngay lập tức!
+    if (aiResponse && aiResponse.isSolutionMatchingProblem === false) {
+      const reason =
+        aiResponse.mismatchReason ||
+        'Mã nguồn giải mẫu không phù hợp với yêu cầu của đề bài toán này.';
+      this.logger.warn(`Phát hiện mã nguồn không khớp đề bài: ${reason}`);
+      throw new BadRequestException(
+        `Không thể sinh Test Case: ${reason}`,
+      );
+    }
+
     const generatedCases = aiResponse?.cases || [];
-    this.logger.log(`Gemini đã tạo ${generatedCases.length} bộ Input biên. Đang thực thi qua Judge0...`);
+    if (generatedCases.length === 0) {
+      throw new BadRequestException('Không thể sinh được Test Case biên nào phù hợp với đề bài và mã nguồn.');
+    }
+
+    this.logger.log(`Gemini đã xác nhận code mẫu hợp lệ và tạo ${generatedCases.length} bộ Input biên. Đang thực thi qua Judge0...`);
 
     // 3. Thực thi từng input với Solution Code trên Judge0 để lấy stdout làm expectedOutput chuẩn xác 100%
     const finalizedTestCases: any[] = [];
