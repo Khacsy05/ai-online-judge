@@ -272,14 +272,58 @@ export interface ClassroomAnalyticsResponse {
   gradebook: StudentGradeItem[];
 }
 
-/**
- * 📊 Lấy báo cáo phân tích toàn diện lớp học (Analytics & Gradebook)
- */
 export async function getClassroomAnalytics(
   classroomId: string
 ): Promise<ClassroomAnalyticsResponse> {
   const response = await apiClient.get<ClassroomAnalyticsResponse>(
     `/classrooms/${classroomId}/analytics`
+  );
+  return response.data;
+}
+
+export interface PlagiarismSuspiciousPair {
+  submissionA: {
+    id: string;
+    userId: string;
+    userName: string;
+    studentCode: string;
+    tokenCount: number;
+    sourceCode: string;
+  };
+  submissionB: {
+    id: string;
+    userId: string;
+    userName: string;
+    studentCode: string;
+    tokenCount: number;
+    sourceCode: string;
+  };
+  similarity: number; // %
+  jaccardIndex: number;
+  risk: "CRITICAL" | "HIGH" | "MEDIUM";
+}
+
+export interface PlagiarismCheckResponse {
+  assignment: {
+    id: string;
+    title: string;
+  };
+  totalSubmissions: number;
+  totalComparisons: number;
+  suspiciousCount: number;
+  suspiciousPairs: PlagiarismSuspiciousPair[];
+  message?: string;
+}
+
+/**
+ * 🔍 Quét tương đồng cấu trúc AST (Phát hiện đạo văn / chép code)
+ */
+export async function checkAssignmentPlagiarism(
+  classroomId: string,
+  assignmentId: string
+): Promise<PlagiarismCheckResponse> {
+  const response = await apiClient.post<PlagiarismCheckResponse>(
+    `/classrooms/${classroomId}/assignments/${assignmentId}/plagiarism-check`
   );
   return response.data;
 }
