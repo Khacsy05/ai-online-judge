@@ -1,10 +1,13 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Role, JudgeStatus } from '@prisma/client';
 import { QueryClassroomsDto } from './dto/query-classrooms.dto';
+import * as path from 'path';
+import * as fs from 'fs';
+import { spawn } from 'child_process';
 
 @Injectable()
 export class ClassroomsService {
@@ -892,5 +895,162 @@ export class ClassroomsService {
       mostDifficultAssignments: mostDifficultAssignments.slice(0, 3), // Top 3 bài sinh viên hay sai nhất
       gradebook: rankedGradebook,
     };
+  }
+
+  /**
+   * 🔍 Phát hiện đạo văn / Gian lận mã nguồn bằng AST & Winnowing Fingerprints
+   * So sánh chéo tất cả bài nộp của một bài tập trong lớp học
+   */
+  async checkAssignmentPlagiarism(classroomId: string, assignmentId: string) {
+    const assignment = await this.prisma.assignment.findFirst({
+      where: { id: assignmentId, classroomId },
+      include: {
+        problem: true,
+        classroom: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Bài tập không thuộc lớp học này hoặc không tồn tại.');
+    }
+
+    // Lấy bài nộp có điểm cao nhất của từng sinh viên cho bài tập này (hoặc bài nộp mới nhất)
+    const submissions = await this.prisma.submission.findMany({
+      where: { assignmentId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            studentCode: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (submissions.length < 2) {
+      return {
+        assignment: {
+          id: assignment.id,
+          title: assignment.problem.title,
+        },
+        totalSubmissions: submissions.length,
+        totalComparisons: 0,
+        suspiciousCount: 0,
+        suspiciousPairs: [],
+        message: 'Cần ít nhất 2 bài nộp để thực hiện quét tương đồng mã nguồn.',
+      };
+    }
+
+    // Lấy mỗi sinh viên 1 bài nộp tốt nhất (hoặc bài mới nhất có code)
+    const userBestSubMap = new Map<string, typeof submissions[0]>();
+    for (const sub of submissions) {
+      if (!userBestSubMap.has(sub.userId)) {
+        userBestSubMap.set(sub.userId, sub);
+      } else {
+        const current = userBestSubMap.get(sub.userId)!;
+        if (sub.totalScore > current.totalScore) {
+          userBestSubMap.set(sub.userId, sub);
+        }
+      }
+    }
+
+    const payloadSubmissions = Array.from(userBestSubMap.values()).map((s) => ({
+      id: s.id,
+      userId: s.userId,
+      userName: s.user.fullName,
+      studentCode: s.user.studentCode || '',
+      sourceCode: s.sourceCode,
+      language: s.language,
+    }));
+
+    const result = await this.runPlagiarismScript(payloadSubmissions);
+
+    return {
+      assignment: {
+        id: assignment.id,
+        title: assignment.problem.title,
+      },
+      ...result,
+    };
+  }
+
+  private async runPlagiarismScript(submissions: any[]): Promise<any> {
+    return new Promise((resolve) => {
+      const possiblePaths = [
+        path.join(process.cwd(), 'scripts', 'plagiarism_checker.py'),
+        path.join(process.cwd(), 'backend', 'scripts', 'plagiarism_checker.py'),
+        path.join(__dirname, '..', '..', '..', 'scripts', 'plagiarism_checker.py'),
+      ];
+      const scriptPath = possiblePaths.find((p) => fs.existsSync(p));
+
+      if (!scriptPath) {
+        Logger.warn('Không tìm thấy file scripts/plagiarism_checker.py');
+        return resolve({
+          totalSubmissions: submissions.length,
+          totalComparisons: 0,
+          suspiciousCount: 0,
+          suspiciousPairs: [],
+          error: 'Không tìm thấy file scripts/plagiarism_checker.py',
+        });
+      }
+
+      const child = spawn('python', [scriptPath], {
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString('utf-8');
+      });
+
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf-8');
+      });
+
+      child.on('close', (code) => {
+        if (code !== 0 && !stdout.trim()) {
+          Logger.error(`Lỗi thực thi Plagiarism Checker (code ${code}): ${stderr}`);
+          return resolve({
+            totalSubmissions: submissions.length,
+            totalComparisons: 0,
+            suspiciousCount: 0,
+            suspiciousPairs: [],
+            error: stderr || `Process exited with code ${code}`,
+          });
+        }
+        try {
+          const parsed = JSON.parse(stdout);
+          resolve(parsed);
+        } catch (err) {
+          Logger.error(`Lỗi parse JSON output từ Plagiarism Checker: ${err.message}`);
+          resolve({
+            totalSubmissions: submissions.length,
+            totalComparisons: 0,
+            suspiciousCount: 0,
+            suspiciousPairs: [],
+            error: `Lỗi parse JSON: ${err.message}`,
+            raw: stdout,
+          });
+        }
+      });
+
+      child.on('error', (err) => {
+        Logger.error(`Không thể spawn tiến trình Python cho Plagiarism Checker: ${err.message}`);
+        resolve({
+          totalSubmissions: submissions.length,
+          totalComparisons: 0,
+          suspiciousCount: 0,
+          suspiciousPairs: [],
+          error: `Không thể khởi chạy Python: ${err.message}`,
+        });
+      });
+
+      child.stdin.write(JSON.stringify({ submissions }));
+      child.stdin.end();
+    });
   }
 }

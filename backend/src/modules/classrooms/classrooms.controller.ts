@@ -84,4 +84,13 @@ export class ClassroomsController {
   getAnalytics(@Param('id') id: string) {
     return this.classroomsService.getClassroomAnalytics(id);
   }
+
+  @Post(':id/assignments/:assignmentId/plagiarism-check')
+  @UseGuards(JwtAuthGuard)
+  checkPlagiarism(
+    @Param('id') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+  ) {
+    return this.classroomsService.checkAssignmentPlagiarism(classroomId, assignmentId);
+  }
 }

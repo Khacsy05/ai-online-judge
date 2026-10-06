@@ -31,6 +31,10 @@ import {
   Percent,
   Award,
   ArrowUpDown,
+  ShieldAlert,
+  Split,
+  Eye,
+  GitCompare,
 } from "lucide-react";
 import {
   getClassList,
@@ -45,10 +49,13 @@ import {
   assignProblemToClass,
   removeAssignmentFromClass,
   getClassroomAnalytics,
+  checkAssignmentPlagiarism,
   ClassroomItem,
   ClassroomDetailResponse,
   AvailableStudentItem,
   ClassroomAnalyticsResponse,
+  PlagiarismCheckResponse,
+  PlagiarismSuspiciousPair,
 } from "@/services/classroom.service";
 import { getProblems, ProblemItem } from "@/services/problem.service";
 import { toast } from "sonner";
@@ -112,6 +119,14 @@ export default function AdminClassroomsPage() {
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsTab, setAnalyticsTab] = useState<"overview" | "problems" | "gradebook">("overview");
 
+  // Modal State: Quét đạo văn / Gian lận mã nguồn AST
+  const [plagiarismModalClassId, setPlagiarismModalClassId] = useState<string | null>(null);
+  const [plagiarismAssignments, setPlagiarismAssignments] = useState<Array<{ id: string; title: string }>>([]);
+  const [selectedPlagiarismAssignmentId, setSelectedPlagiarismAssignmentId] = useState<string>("");
+  const [plagiarismResult, setPlagiarismResult] = useState<PlagiarismCheckResponse | null>(null);
+  const [loadingPlagiarism, setLoadingPlagiarism] = useState(false);
+  const [diffPair, setDiffPair] = useState<PlagiarismSuspiciousPair | null>(null);
+
   const handleOpenAnalytics = async (classroomId: string) => {
     setAnalyticsModalClassId(classroomId);
     setAnalyticsTab("overview");
@@ -124,6 +139,58 @@ export default function AdminClassroomsPage() {
       setAnalyticsModalClassId(null);
     } finally {
       setLoadingAnalytics(false);
+    }
+  };
+
+  const handleOpenPlagiarismModal = async (classroomId: string, defaultAssignmentId?: string) => {
+    setPlagiarismModalClassId(classroomId);
+    setPlagiarismResult(null);
+    setDiffPair(null);
+    setPlagiarismAssignments([]);
+
+    let assignId = defaultAssignmentId || "";
+
+    try {
+      const detail = await getClassroomById(classroomId);
+      const list = (detail.assignments || []).map((a) => ({
+        id: a.id,
+        title: a.problem?.title || "Bài tập không tên",
+      }));
+      setPlagiarismAssignments(list);
+
+      if (!assignId && list.length > 0) {
+        assignId = list[0].id;
+      }
+    } catch (e) {
+      console.error("Lỗi khi tải danh sách bài tập cho lớp:", e);
+    }
+
+    setSelectedPlagiarismAssignmentId(assignId);
+    if (assignId) {
+      runPlagiarismScan(classroomId, assignId);
+    }
+  };
+
+  const runPlagiarismScan = async (classroomId: string, assignmentId: string) => {
+    if (!assignmentId) {
+      toast.error("Vui lòng chọn bài tập để quét đạo văn.");
+      return;
+    }
+    setLoadingPlagiarism(true);
+    setPlagiarismResult(null);
+    setDiffPair(null);
+    try {
+      const res = await checkAssignmentPlagiarism(classroomId, assignmentId);
+      setPlagiarismResult(res);
+      if (res.suspiciousCount > 0) {
+        toast.warning(`Phát hiện ${res.suspiciousCount} cặp bài nộp có cấu trúc tương đồng cao!`);
+      } else {
+        toast.success("Không phát hiện nghi vấn sao chép nào vượt ngưỡng cảnh báo.");
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Lỗi khi quét tương đồng mã nguồn.");
+    } finally {
+      setLoadingPlagiarism(false);
     }
   };
 
@@ -647,20 +714,29 @@ export default function AdminClassroomsPage() {
                   </div>
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+                <div className="mt-5 pt-3 border-t border-slate-100 flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleOpenDetail(c.id)}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all cursor-pointer"
+                    >
+                      <Users size={14} />
+                      <span>Thành viên & Bài tập</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenAnalytics(c.id)}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <BarChart3 size={14} className="text-emerald-700" />
+                      <span>Báo cáo & Điểm số</span>
+                    </button>
+                  </div>
                   <button
-                    onClick={() => handleOpenDetail(c.id)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all cursor-pointer"
+                    onClick={() => handleOpenPlagiarismModal(c.id)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/40 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs"
                   >
-                    <Users size={14} />
-                    <span>Thành viên & Bài tập</span>
-                  </button>
-                  <button
-                    onClick={() => handleOpenAnalytics(c.id)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all cursor-pointer shadow-2xs"
-                  >
-                    <BarChart3 size={14} className="text-emerald-700" />
-                    <span>Báo cáo & Điểm số</span>
+                    <ShieldAlert size={14} className="text-rose-600" />
+                    <span>Quét gian lận mã nguồn (AST)</span>
                   </button>
                 </div>
               </div>
@@ -1675,6 +1751,338 @@ export default function AdminClassroomsPage() {
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL 5: QUÉT GIAN LẬN MÃ NGUỒN (ANTI-PLAGIARISM AST) ===================== */}
+      {plagiarismModalClassId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 bg-gradient-to-r from-rose-50/50 via-white to-white">
+              <div className="flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-md shadow-rose-200">
+                  <ShieldAlert size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded border border-rose-200">
+                      AST & MOSS
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900">
+                      Hệ thống Quét Gian lận & Đạo văn Mã nguồn
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    So sánh cấu trúc cây cú pháp (AST) & Winnowing Fingerprints — Bỏ qua đổi tên biến & comment.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setPlagiarismModalClassId(null)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Chọn bài tập cần quét & Nút kích hoạt */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-100 px-6 py-3 bg-slate-50/60">
+              <div className="flex items-center gap-2 flex-1 max-w-md">
+                <label className="text-xs font-bold text-slate-700 whitespace-nowrap">
+                  Chọn bài tập:
+                </label>
+                <select
+                  value={selectedPlagiarismAssignmentId}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedPlagiarismAssignmentId(newId);
+                    if (newId) runPlagiarismScan(plagiarismModalClassId, newId);
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+                >
+                  {plagiarismAssignments.length === 0 ? (
+                    <option value="">
+                      {classrooms.find((c) => c.id === plagiarismModalClassId)?._count?.assignments === 0
+                        ? "Lớp này chưa giao bài tập nào"
+                        : "Đang tải danh sách bài tập..."}
+                    </option>
+                  ) : (
+                    plagiarismAssignments.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <button
+                onClick={() =>
+                  runPlagiarismScan(plagiarismModalClassId, selectedPlagiarismAssignmentId)
+                }
+                disabled={loadingPlagiarism || !selectedPlagiarismAssignmentId}
+                className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose-700 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {loadingPlagiarism ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                <span>Quét lại bài tập này</span>
+              </button>
+            </div>
+
+            {/* Body Kết quả quét */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-slate-800">
+              {loadingPlagiarism ? (
+                <div className="flex h-64 flex-col items-center justify-center gap-3">
+                  <Loader2 size={36} className="animate-spin text-rose-600" />
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-slate-800">
+                      Đang chuẩn hóa AST & sinh dấu vân tay Winnowing...
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Đang so sánh chéo từng cặp bài nộp trong lớp để đo lường chỉ số Jaccard Similarity.
+                    </p>
+                  </div>
+                </div>
+              ) : !plagiarismResult ? (
+                <div className="p-12 text-center text-slate-400 text-sm">
+                  Vui lòng chọn bài tập để thực hiện quét gian lận.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* KPI Bar */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                        Tổng bài nộp
+                      </span>
+                      <div className="text-xl font-bold text-slate-900">
+                        {plagiarismResult.totalSubmissions}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                        Số cặp so sánh chéo
+                      </span>
+                      <div className="text-xl font-bold text-blue-700 font-mono">
+                        {plagiarismResult.totalComparisons}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-rose-200 bg-rose-50/40 p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 block mb-0.5">
+                        Cặp bài nghi vấn (≥ 40%)
+                      </span>
+                      <div className="text-xl font-bold text-rose-700">
+                        {plagiarismResult.suspiciousCount}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                        Trạng thái lớp
+                      </span>
+                      <div className="text-sm font-bold mt-1">
+                        {plagiarismResult.suspiciousCount === 0 ? (
+                          <span className="text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 size={16} /> An toàn tuyệt đối
+                          </span>
+                        ) : (
+                          <span className="text-rose-600 flex items-center gap-1">
+                            <AlertCircle size={16} /> Có nguy cơ sao chép
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Danh sách các cặp nghi vấn */}
+                  {plagiarismResult.suspiciousPairs.length === 0 ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-8 text-center">
+                      <div className="flex size-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 mx-auto mb-3">
+                        <CheckCircle2 size={24} />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Không phát hiện bài nộp nào có hành vi sao chép!
+                      </h4>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                        Tất cả các sinh viên trong lớp có cấu trúc AST độc lập hoặc độ tương đồng nằm dưới ngưỡng cho phép.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                        <span>Danh sách các cặp bài nộp tương đồng cấu trúc:</span>
+                        <span className="text-[11px] font-normal text-slate-400">
+                          Bấm &quot;So sánh song song&quot; để đối chiếu code 2 bên
+                        </span>
+                      </h3>
+
+                      <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                        {plagiarismResult.suspiciousPairs.map((pair, idx) => {
+                          const isCritical = pair.risk === "CRITICAL";
+                          const isHigh = pair.risk === "HIGH";
+
+                          return (
+                            <div
+                              key={idx}
+                              className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors"
+                            >
+                              <div className="flex items-center gap-4 flex-1">
+                                {/* Badge độ tương đồng */}
+                                <div
+                                  className={`flex size-14 shrink-0 flex-col items-center justify-center rounded-2xl border font-mono font-bold ${
+                                    isCritical
+                                      ? "bg-rose-50 border-rose-300 text-rose-700"
+                                      : isHigh
+                                      ? "bg-amber-50 border-amber-300 text-amber-700"
+                                      : "bg-blue-50 border-blue-200 text-blue-700"
+                                  }`}
+                                >
+                                  <span className="text-base leading-none">{pair.similarity}%</span>
+                                  <span className="text-[9px] uppercase tracking-wider mt-0.5 font-sans">
+                                    {isCritical ? "Báo động" : isHigh ? "Đáng ngờ" : "Lưu ý"}
+                                  </span>
+                                </div>
+
+                                {/* Thông tin 2 sinh viên đối đầu */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 text-xs">
+                                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                                      Sinh viên A
+                                    </span>
+                                    <div className="font-bold text-slate-900 truncate">
+                                      {pair.submissionA.userName}
+                                    </div>
+                                    <div className="text-[11px] text-blue-700 font-mono mt-0.5">
+                                      Mã SV: {pair.submissionA.studentCode || "Chưa có"}
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                                      Sinh viên B
+                                    </span>
+                                    <div className="font-bold text-slate-900 truncate">
+                                      {pair.submissionB.userName}
+                                    </div>
+                                    <div className="text-[11px] text-blue-700 font-mono mt-0.5">
+                                      Mã SV: {pair.submissionB.studentCode || "Chưa có"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => setDiffPair(pair)}
+                                className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-all cursor-pointer shrink-0 shadow-2xs"
+                              >
+                                <GitCompare size={14} />
+                                <span>So sánh song song</span>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-b-2xl">
+              <span className="text-xs text-slate-400 font-mono">
+                Cơ chế phân tích cú pháp AST độc lập với tên biến
+              </span>
+              <button
+                onClick={() => setPlagiarismModalClassId(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL 6: SO SÁNH SONG SONG MÃ NGUỒN 2 BÊN (SIDE-BY-SIDE DIFF) ===================== */}
+      {diffPair && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-150">
+          <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl text-slate-200">
+            {/* Header Diff Modal */}
+            <div className="flex items-center justify-between border-b border-slate-800 p-4 bg-slate-950">
+              <div className="flex items-center gap-3">
+                <span className="rounded-xl bg-rose-600/20 border border-rose-500/30 px-3 py-1 font-mono text-xs font-bold text-rose-400">
+                  Tương đồng AST: {diffPair.similarity}%
+                </span>
+                <span className="text-xs text-slate-400">
+                  Đối chiếu cấu trúc giữa 2 sinh viên nghi vấn sao chép
+                </span>
+              </div>
+              <button
+                onClick={() => setDiffPair(null)}
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Side-by-side code blocks */}
+            <div className="grid grid-cols-1 md:grid-cols-2 flex-1 divide-y md:divide-y-0 md:divide-x divide-slate-800 overflow-hidden">
+              {/* Sinh viên A */}
+              <div className="flex flex-col h-full overflow-hidden">
+                <div className="p-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      {diffPair.submissionA.userName}
+                    </span>
+                    <span className="text-[11px] text-blue-400 font-mono">
+                      MSSV: {diffPair.submissionA.studentCode || "N/A"}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {diffPair.submissionA.tokenCount} AST tokens
+                  </span>
+                </div>
+                <pre className="flex-1 overflow-auto p-4 font-mono text-xs text-emerald-300 leading-relaxed bg-slate-950 whitespace-pre-wrap select-text">
+                  {diffPair.submissionA.sourceCode}
+                </pre>
+              </div>
+
+              {/* Sinh viên B */}
+              <div className="flex flex-col h-full overflow-hidden">
+                <div className="p-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      {diffPair.submissionB.userName}
+                    </span>
+                    <span className="text-[11px] text-purple-400 font-mono">
+                      MSSV: {diffPair.submissionB.studentCode || "N/A"}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {diffPair.submissionB.tokenCount} AST tokens
+                  </span>
+                </div>
+                <pre className="flex-1 overflow-auto p-4 font-mono text-xs text-rose-300 leading-relaxed bg-slate-950 whitespace-pre-wrap select-text">
+                  {diffPair.submissionB.sourceCode}
+                </pre>
+              </div>
+            </div>
+
+            {/* Footer Diff Modal */}
+            <div className="p-3 border-t border-slate-800 flex justify-end bg-slate-950">
+              <button
+                onClick={() => setDiffPair(null)}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors"
+              >
+                Quay lại danh sách
               </button>
             </div>
           </div>
