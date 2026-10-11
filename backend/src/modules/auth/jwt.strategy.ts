@@ -15,7 +15,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
       // 3. Khóa bí mật dùng để giải mã và xác thực chữ ký của Token
       // ⚠️ Lưu ý: Thay chuỗi này bằng chuỗi Secret Key thực tế mà bạn dùng khi tạo Token lúc Login
-      secretOrKey: process.env.JWT_ACCESS_SECRET || "ACCESS_SECRET_KEY",
+      secretOrKey: process.env.JWT_ACCESS_SECRET || 'ACCESS_SECRET_KEY',
     });
   }
 
@@ -30,11 +30,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     // Kiểm tra trực tiếp trạng thái kích hoạt của người dùng trong DB
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.id }
+      where: { id: payload.id },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa hoặc không tồn tại!');
+      throw new UnauthorizedException(
+        'Tài khoản đã bị vô hiệu hóa hoặc không tồn tại!',
+      );
     }
 
     return {
@@ -42,7 +44,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       name: payload.name,
       email: payload.email,
       role: payload.role,
-
     };
   }
 }

@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class GenerateBoundaryTestsDto {
   @IsNotEmpty({ message: 'Tiêu đề bài toán không được để trống' })

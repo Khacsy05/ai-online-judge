@@ -39,7 +39,7 @@ async function bootstrap() {
     credentials: true, // ✅ Quan trọng: cho phép gửi cookie
   });
   const port = process.env.PORT ?? 3001;
-  await app.listen(port, "0.0.0.0");
+  await app.listen(port, '0.0.0.0');
   console.log(`Backend đang chạy tại: http://localhost:${port}`);
 }
-bootstrap();
+void bootstrap();

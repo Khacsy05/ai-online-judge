@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { CreateProblemDto } from './dto/create-problem.dto';
 import { UpdateProblemDto } from './dto/update-problem.dto';
 import { QueryProblemsDto } from './dto/query-problems.dto';
@@ -18,17 +23,26 @@ export class ProblemsService {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     private readonly judge0Service: Judge0Service,
-  ) { }
+  ) {}
 
   async create(createProblemDto: CreateProblemDto) {
-    const { title, description, timeLimitMs, memoryLimitMb, authorId, testCases } = createProblemDto;
+    const {
+      title,
+      description,
+      timeLimitMs,
+      memoryLimitMb,
+      authorId,
+      testCases,
+    } = createProblemDto;
 
     // Nếu chưa có authorId truyền vào, lấy user admin đầu tiên trong DB
     let finalAuthorId = authorId;
     if (!finalAuthorId) {
       const defaultUser = await this.prisma.user.findFirst();
       if (!defaultUser) {
-        throw new NotFoundException('Không tìm thấy người dùng nào trong hệ thống để gán tác giả.');
+        throw new NotFoundException(
+          'Không tìm thấy người dùng nào trong hệ thống để gán tác giả.',
+        );
       }
       finalAuthorId = defaultUser.id;
     }
@@ -40,13 +54,16 @@ export class ProblemsService {
         timeLimitMs: Number(timeLimitMs) || 1000,
         memoryLimitMb: Number(memoryLimitMb) || 256,
         authorId: finalAuthorId,
-        testCases: testCases && testCases.length > 0 ? {
-          create: testCases.map((tc) => ({
-            input: tc.input || '',
-            expectedOutput: tc.expectedOutput || '',
-            isHidden: tc.isHidden !== undefined ? tc.isHidden : true,
-          })),
-        } : undefined,
+        testCases:
+          testCases && testCases.length > 0
+            ? {
+                create: testCases.map((tc) => ({
+                  input: tc.input || '',
+                  expectedOutput: tc.expectedOutput || '',
+                  isHidden: tc.isHidden !== undefined ? tc.isHidden : true,
+                })),
+              }
+            : undefined,
       },
       include: {
         testCases: true,
@@ -112,7 +129,7 @@ export class ProblemsService {
         (sum, a) => sum + (a._count?.submissions || 0),
         0,
       );
-      const { assignments, ...rest } = p;
+      const { assignments: _assignments, ...rest } = p;
       return {
         ...rest,
         _count: {
@@ -158,7 +175,8 @@ export class ProblemsService {
       throw new NotFoundException(`Không tìm thấy bài tập với ID: "${id}"`);
     }
 
-    const { title, description, timeLimitMs, memoryLimitMb, testCases } = updateProblemDto;
+    const { title, description, timeLimitMs, memoryLimitMb, testCases } =
+      updateProblemDto;
 
     return this.prisma.$transaction(async (tx) => {
       // Nếu có danh sách testCases mới, cập nhật thông minh (Upsert / Delete an toàn)
@@ -213,10 +231,14 @@ export class ProblemsService {
             select: { testCaseId: true },
             distinct: ['testCaseId'],
           });
-          const referencedIds = new Set(referencedDetails.map((d) => d.testCaseId));
+          const referencedIds = new Set(
+            referencedDetails.map((d) => d.testCaseId),
+          );
 
           // Chỉ xóa các test case KHÔNG bị bài nộp nào tham chiếu
-          const safeDeleteIds = toDeleteIds.filter((tid) => !referencedIds.has(tid));
+          const safeDeleteIds = toDeleteIds.filter(
+            (tid) => !referencedIds.has(tid),
+          );
           if (safeDeleteIds.length > 0) {
             await tx.testCase.deleteMany({
               where: { id: { in: safeDeleteIds } },
@@ -225,7 +247,9 @@ export class ProblemsService {
 
           // Các test case đã bị bài nộp tham chiếu nhưng người dùng bỏ khỏi danh sách:
           // Đánh dấu ẩn (isHidden = true) để không ảnh hưởng đến sinh viên và giữ nguyên lịch sử bài nộp cũ
-          const cannotDeleteIds = toDeleteIds.filter((tid) => referencedIds.has(tid));
+          const cannotDeleteIds = toDeleteIds.filter((tid) =>
+            referencedIds.has(tid),
+          );
           if (cannotDeleteIds.length > 0) {
             await tx.testCase.updateMany({
               where: { id: { in: cannotDeleteIds } },
@@ -246,9 +270,12 @@ export class ProblemsService {
         where: { id },
         data: {
           title: title !== undefined ? title.trim() : undefined,
-          description: description !== undefined ? description.trim() : undefined,
-          timeLimitMs: timeLimitMs !== undefined ? Number(timeLimitMs) : undefined,
-          memoryLimitMb: memoryLimitMb !== undefined ? Number(memoryLimitMb) : undefined,
+          description:
+            description !== undefined ? description.trim() : undefined,
+          timeLimitMs:
+            timeLimitMs !== undefined ? Number(timeLimitMs) : undefined,
+          memoryLimitMb:
+            memoryLimitMb !== undefined ? Number(memoryLimitMb) : undefined,
         },
         include: {
           testCases: true,
@@ -302,7 +329,10 @@ export class ProblemsService {
   /**
    * Gọi script Python phân tích cây cú pháp trừu tượng (AST) của mã nguồn giải mẫu
    */
-  private async runAstAnalyzer(sourceCode: string, language: string): Promise<any> {
+  private async runAstAnalyzer(
+    sourceCode: string,
+    language: string,
+  ): Promise<any> {
     return new Promise((resolve) => {
       const possiblePaths = [
         path.join(process.cwd(), 'scripts', 'ast_analyzer.py'),
@@ -338,7 +368,9 @@ export class ProblemsService {
 
       child.on('close', (code) => {
         if (code !== 0 && !stdout.trim()) {
-          this.logger.error(`Lỗi thực thi AST Analyzer (code ${code}): ${stderr}`);
+          this.logger.error(
+            `Lỗi thực thi AST Analyzer (code ${code}): ${stderr}`,
+          );
           return resolve({
             success: false,
             error: stderr || `Process exited with code ${code}`,
@@ -350,7 +382,9 @@ export class ProblemsService {
           const parsed = JSON.parse(stdout);
           resolve(parsed);
         } catch (err) {
-          this.logger.error(`Lỗi parse JSON output từ AST Analyzer: ${err.message}`);
+          this.logger.error(
+            `Lỗi parse JSON output từ AST Analyzer: ${err.message}`,
+          );
           resolve({
             success: false,
             error: `Lỗi parse JSON output từ AST: ${err.message}`,
@@ -362,7 +396,9 @@ export class ProblemsService {
       });
 
       child.on('error', (err) => {
-        this.logger.error(`Không thể spawn tiến trình Python cho AST: ${err.message}`);
+        this.logger.error(
+          `Không thể spawn tiến trình Python cho AST: ${err.message}`,
+        );
         resolve({
           success: false,
           error: `Không thể khởi chạy Python: ${err.message}`,
@@ -381,13 +417,23 @@ export class ProblemsService {
    * Kết hợp: AST (Phân tích tĩnh) + LLM Gemini + Judge0 Sandbox (Oracle)
    */
   async generateBoundaryTests(dto: GenerateBoundaryTestsDto) {
-    const { problemTitle, problemDescription, solutionCode, language, numCases = 5 } = dto;
+    const {
+      problemTitle,
+      problemDescription,
+      solutionCode,
+      language,
+      numCases = 5,
+    } = dto;
     const languageId = this.judge0Service.getLanguageId(language);
     if (!languageId) {
-      throw new BadRequestException(`Ngôn ngữ "${language}" chưa được hỗ trợ bởi Judge0.`);
+      throw new BadRequestException(
+        `Ngôn ngữ "${language}" chưa được hỗ trợ bởi Judge0.`,
+      );
     }
 
-    this.logger.log(`Bắt đầu phân tích AST cho bài toán "${problemTitle}" (${language})...`);
+    this.logger.log(
+      `Bắt đầu phân tích AST cho bài toán "${problemTitle}" (${language})...`,
+    );
 
     // 1. Phân tích AST của mã nguồn giải mẫu
     const astReport = await this.runAstAnalyzer(solutionCode, language);
@@ -477,7 +523,12 @@ ${JSON.stringify(astReport?.conditions || [], null, 2)}
     const aiResponse = await this.aiService.generateJson<{
       isSolutionMatchingProblem: boolean;
       mismatchReason?: string;
-      cases: Array<{ name: string; category?: string; description?: string; input: string }>;
+      cases: Array<{
+        name: string;
+        category?: string;
+        description?: string;
+        input: string;
+      }>;
     }>(prompt, schema);
 
     // 🛡️ BẢO VỆ CHẶNG ĐẦU: Nếu code mẫu không khớp với đề bài, từ chối ngay lập tức!
@@ -486,17 +537,19 @@ ${JSON.stringify(astReport?.conditions || [], null, 2)}
         aiResponse.mismatchReason ||
         'Mã nguồn giải mẫu không phù hợp với yêu cầu của đề bài toán này.';
       this.logger.warn(`Phát hiện mã nguồn không khớp đề bài: ${reason}`);
-      throw new BadRequestException(
-        `Không thể sinh Test Case: ${reason}`,
-      );
+      throw new BadRequestException(`Không thể sinh Test Case: ${reason}`);
     }
 
     const generatedCases = aiResponse?.cases || [];
     if (generatedCases.length === 0) {
-      throw new BadRequestException('Không thể sinh được Test Case biên nào phù hợp với đề bài và mã nguồn.');
+      throw new BadRequestException(
+        'Không thể sinh được Test Case biên nào phù hợp với đề bài và mã nguồn.',
+      );
     }
 
-    this.logger.log(`Gemini đã xác nhận code mẫu hợp lệ và tạo ${generatedCases.length} bộ Input biên. Đang thực thi qua Judge0...`);
+    this.logger.log(
+      `Gemini đã xác nhận code mẫu hợp lệ và tạo ${generatedCases.length} bộ Input biên. Đang thực thi qua Judge0...`,
+    );
 
     // 3. Thực thi từng input với Solution Code trên Judge0 để lấy stdout làm expectedOutput chuẩn xác 100%
     const finalizedTestCases: any[] = [];
@@ -532,7 +585,9 @@ ${JSON.stringify(astReport?.conditions || [], null, 2)}
           memoryUsed: judgeResult.memory,
         });
       } catch (judgeErr) {
-        this.logger.warn(`Lỗi khi thực thi testcase #${i + 1} qua Judge0: ${judgeErr.message}`);
+        this.logger.warn(
+          `Lỗi khi thực thi testcase #${i + 1} qua Judge0: ${judgeErr.message}`,
+        );
         finalizedTestCases.push({
           name: tc.name || `Biên test #${i + 1}`,
           category: tc.category || 'boundary_case',
@@ -554,5 +609,3 @@ ${JSON.stringify(astReport?.conditions || [], null, 2)}
     };
   }
 }
-
-

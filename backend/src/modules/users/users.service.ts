@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -18,14 +17,17 @@ export class UsersService {
    * Tạo tài khoản người dùng mới
    */
   async create(createUserDto: CreateUserDto) {
-    const { email, password, fullName, studentCode, role, classroomId } = createUserDto;
+    const { email, password, fullName, studentCode, role, classroomId } =
+      createUserDto;
 
     // 1. Kiểm tra trùng Email
     const existingEmail = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
     });
     if (existingEmail) {
-      throw new ConflictException('Email này đã được sử dụng bởi một tài khoản khác!');
+      throw new ConflictException(
+        'Email này đã được sử dụng bởi một tài khoản khác!',
+      );
     }
 
     // 2. Kiểm tra trùng StudentCode nếu có
@@ -34,7 +36,9 @@ export class UsersService {
         where: { studentCode: studentCode.trim() },
       });
       if (existingCode) {
-        throw new ConflictException('Mã sinh viên này đã tồn tại trong hệ thống!');
+        throw new ConflictException(
+          'Mã sinh viên này đã tồn tại trong hệ thống!',
+        );
       }
     }
 
@@ -191,7 +195,9 @@ export class UsersService {
   async update(id: string, updateUserDto: UpdateUserDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
-      throw new NotFoundException('Không tìm thấy tài khoản người dùng cần cập nhật!');
+      throw new NotFoundException(
+        'Không tìm thấy tài khoản người dùng cần cập nhật!',
+      );
     }
 
     const { email, fullName, studentCode, role, classroomId } = updateUserDto;
@@ -202,7 +208,9 @@ export class UsersService {
         where: { email: email.toLowerCase().trim() },
       });
       if (existingEmail && existingEmail.id !== id) {
-        throw new ConflictException('Email này đã được sử dụng bởi một tài khoản khác!');
+        throw new ConflictException(
+          'Email này đã được sử dụng bởi một tài khoản khác!',
+        );
       }
     }
 
@@ -213,7 +221,9 @@ export class UsersService {
           where: { studentCode: studentCode.trim() },
         });
         if (existingCode && existingCode.id !== id) {
-          throw new ConflictException('Mã sinh viên này đã thuộc về người khác!');
+          throw new ConflictException(
+            'Mã sinh viên này đã thuộc về người khác!',
+          );
         }
       }
     }
@@ -221,7 +231,8 @@ export class UsersService {
     const data: any = {};
     if (email) data.email = email.toLowerCase().trim();
     if (fullName) data.fullName = fullName.trim();
-    if (studentCode !== undefined) data.studentCode = studentCode?.trim() || null;
+    if (studentCode !== undefined)
+      data.studentCode = studentCode?.trim() || null;
     if (role) data.role = role;
 
     const updatedUser = await this.prisma.user.update({
@@ -273,7 +284,9 @@ export class UsersService {
   async remove(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
-      throw new NotFoundException('Không tìm thấy tài khoản người dùng để xóa!');
+      throw new NotFoundException(
+        'Không tìm thấy tài khoản người dùng để xóa!',
+      );
     }
 
     // Xóa liên kết lớp học trước

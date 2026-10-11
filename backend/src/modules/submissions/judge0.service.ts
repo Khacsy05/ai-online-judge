@@ -83,7 +83,10 @@ export class Judge0Service {
 
     // Chuẩn hoá tên class chính thành Main nếu là Java
     if (isJava) {
-      codeToExecute = codeToExecute.replace(/public\s+class\s+[A-Za-z0-9_]+/g, 'public class Main');
+      codeToExecute = codeToExecute.replace(
+        /public\s+class\s+[A-Za-z0-9_]+/g,
+        'public class Main',
+      );
     }
 
     const cpuTimeLimitSec = Math.max(1, Math.ceil(timeLimitMs / 1000));
@@ -117,15 +120,29 @@ export class Judge0Service {
       const res = response.data;
       // Nếu là Java và gặp lỗi sandbox cgroup (Internal Error / signal 11 / JVM space reservation error)
       if (isJava && this.isJavaSandboxError(res)) {
-        this.logger.warn(`⚠️ Judge0 sandbox gặp sự cố JVM cho Java. Đang chuyển sang Fallback Java cục bộ...`);
-        return this.executeJavaLocally(codeToExecute, input, expectedOutput, timeLimitMs);
+        this.logger.warn(
+          `⚠️ Judge0 sandbox gặp sự cố JVM cho Java. Đang chuyển sang Fallback Java cục bộ...`,
+        );
+        return this.executeJavaLocally(
+          codeToExecute,
+          input,
+          expectedOutput,
+          timeLimitMs,
+        );
       }
 
       return res;
     } catch (err: any) {
       if (isJava) {
-        this.logger.warn(`⚠️ Kết nối Judge0 cho Java lỗi (${err.message}). Đang chuyển sang Fallback Java cục bộ...`);
-        return this.executeJavaLocally(codeToExecute, input, expectedOutput, timeLimitMs);
+        this.logger.warn(
+          `⚠️ Kết nối Judge0 cho Java lỗi (${err.message}). Đang chuyển sang Fallback Java cục bộ...`,
+        );
+        return this.executeJavaLocally(
+          codeToExecute,
+          input,
+          expectedOutput,
+          timeLimitMs,
+        );
       }
       throw err;
     }
@@ -141,7 +158,9 @@ export class Judge0Service {
       outputCombined.includes('Could not reserve enough space') ||
       outputCombined.includes('Error occurred during initialization of VM') ||
       outputCombined.includes('fatal signal 11') ||
-      outputCombined.includes('No such file or directory @ rb_sysopen - /box/Main.java')
+      outputCombined.includes(
+        'No such file or directory @ rb_sysopen - /box/Main.java',
+      )
     ) {
       return true;
     }
@@ -169,15 +188,20 @@ export class Judge0Service {
       fs.writeFileSync(sourceFilePath, sourceCode, 'utf8');
 
       // 1. Biên dịch: javac Main.java
-      const compileResult = await new Promise<{ code: number; stderr: string }>((resolve) => {
-        const javac = spawn('javac', ['Main.java'], { cwd: tempDir, shell: true });
-        let stderr = '';
-        javac.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-        javac.on('close', (code) => resolve({ code: code ?? 1, stderr }));
-        javac.on('error', (err) => resolve({ code: 1, stderr: err.message }));
-      });
+      const compileResult = await new Promise<{ code: number; stderr: string }>(
+        (resolve) => {
+          const javac = spawn('javac', ['Main.java'], {
+            cwd: tempDir,
+            shell: true,
+          });
+          let stderr = '';
+          javac.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+          javac.on('close', (code) => resolve({ code: code ?? 1, stderr }));
+          javac.on('error', (err) => resolve({ code: 1, stderr: err.message }));
+        },
+      );
 
       if (compileResult.code !== 0) {
         return {
@@ -208,12 +232,17 @@ export class Judge0Service {
         let stderr = '';
         let timedOut = false;
 
-        const timer = setTimeout(() => {
-          timedOut = true;
-          try {
-            java.kill('SIGKILL');
-          } catch (e) { }
-        }, Math.max(timeLimitMs + 1000, 3000));
+        const timer = setTimeout(
+          () => {
+            timedOut = true;
+            try {
+              java.kill('SIGKILL');
+            } catch {
+              // Bỏ qua nếu process đã dừng
+            }
+          },
+          Math.max(timeLimitMs + 1000, 3000),
+        );
 
         if (input) {
           java.stdin.write(input);
@@ -270,7 +299,11 @@ export class Judge0Service {
       let statusId = 3; // ACCEPTED
       let description = 'Accepted';
 
-      if (expectedOutput !== undefined && expectedOutput !== null && expectedOutput !== '') {
+      if (
+        expectedOutput !== undefined &&
+        expectedOutput !== null &&
+        expectedOutput !== ''
+      ) {
         if (trimmedStdout !== trimmedExpected) {
           statusId = 4; // WRONG_ANSWER
           description = 'Wrong Answer';
@@ -290,7 +323,9 @@ export class Judge0Service {
       // Dọn dẹp thư mục tạm
       try {
         fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch (e) { }
+      } catch {
+        // Bỏ qua lỗi xóa thư mục tạm
+      }
     }
   }
 
@@ -300,7 +335,9 @@ export class Judge0Service {
    * 1: In Queue, 2: Processing, 3: Accepted, 4: Wrong Answer, 5: Time Limit Exceeded,
    * 6: Compilation Error, 7..12: Runtime Error
    */
-  mapJudge0Status(statusId: number): 'ACCEPTED' | 'WRONG_ANSWER' | 'COMPILATION_ERROR' | 'RUNTIME_ERROR' {
+  mapJudge0Status(
+    statusId: number,
+  ): 'ACCEPTED' | 'WRONG_ANSWER' | 'COMPILATION_ERROR' | 'RUNTIME_ERROR' {
     if (statusId === 3) {
       return 'ACCEPTED';
     }

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -7,25 +12,56 @@ import { QuerySubmissionsDto } from './dto/query-submissions-dto';
 import { AiService } from '../ai/ai.service';
 
 // Danh sách các pattern bị cấm theo từng ngôn ngữ (hạn chế tối đa false positive)
-const MALICIOUS_PATTERNS: Record<string, { pattern: RegExp; reason: string }[]> = {
+const MALICIOUS_PATTERNS: Record<
+  string,
+  { pattern: RegExp; reason: string }[]
+> = {
   python: [
-    { pattern: /\bimport\s+(os|subprocess|socket|pty|shutil)\b/, reason: 'sử dụng thư viện hệ thống/mạng (os, subprocess, socket, pty, shutil)' },
-    { pattern: /\bfrom\s+(os|subprocess|socket|pty|shutil)\s+import\b/, reason: 'import từ thư viện hệ thống/mạng' },
-    { pattern: /\b(eval|exec)\s*\(/, reason: 'hàm thực thi chuỗi động (eval/exec)' },
+    {
+      pattern: /\bimport\s+(os|subprocess|socket|pty|shutil)\b/,
+      reason:
+        'sử dụng thư viện hệ thống/mạng (os, subprocess, socket, pty, shutil)',
+    },
+    {
+      pattern: /\bfrom\s+(os|subprocess|socket|pty|shutil)\s+import\b/,
+      reason: 'import từ thư viện hệ thống/mạng',
+    },
+    {
+      pattern: /\b(eval|exec)\s*\(/,
+      reason: 'hàm thực thi chuỗi động (eval/exec)',
+    },
     { pattern: /__import__\s*\(/, reason: 'hàm nạp module động (__import__)' },
   ],
   cpp: [
-    { pattern: /#include\s*<sys\//i, reason: 'include thư vien hệ thống (<sys/...>)' },
-    { pattern: /#include\s*<unistd\.h>/i, reason: 'include thư viện POSIX (<unistd.h>)' },
-    { pattern: /#include\s*<windows\.h>/i, reason: 'include thư viện Windows API (<windows.h>)' },
+    {
+      pattern: /#include\s*<sys\//i,
+      reason: 'include thư vien hệ thống (<sys/...>)',
+    },
+    {
+      pattern: /#include\s*<unistd\.h>/i,
+      reason: 'include thư viện POSIX (<unistd.h>)',
+    },
+    {
+      pattern: /#include\s*<windows\.h>/i,
+      reason: 'include thư viện Windows API (<windows.h>)',
+    },
     { pattern: /\bfork\s*\(/, reason: 'gọi hàm nhân bản tiến trình fork()' },
     { pattern: /\bsystem\s*\(/, reason: 'gọi lệnh shell hệ thống system()' },
   ],
   java: [
-    { pattern: /Runtime\.getRuntime\s*\(\)/, reason: 'truy cập Runtime hệ thống' },
-    { pattern: /ProcessBuilder/, reason: 'khởi tạo tiến trình bên ngoài (ProcessBuilder)' },
+    {
+      pattern: /Runtime\.getRuntime\s*\(\)/,
+      reason: 'truy cập Runtime hệ thống',
+    },
+    {
+      pattern: /ProcessBuilder/,
+      reason: 'khởi tạo tiến trình bên ngoài (ProcessBuilder)',
+    },
     { pattern: /java\.net\./, reason: 'kết nối mạng (java.net)' },
-    { pattern: /System\.exit\s*\(/, reason: 'gọi System.exit() làm gián đoạn môi trường chấm' },
+    {
+      pattern: /System\.exit\s*\(/,
+      reason: 'gọi System.exit() làm gián đoạn môi trường chấm',
+    },
   ],
 };
 
@@ -36,7 +72,7 @@ function checkMaliciousCode(sourceCode: string, language: string) {
   for (const rule of rules) {
     if (rule.pattern.test(sourceCode)) {
       throw new BadRequestException(
-        `Bài làm bị từ chối vì lý do an toàn hệ thống: Phát hiện ${rule.reason}. Vui lòng chỉ sử dụng các thư viện thuật toán tiêu chuẩn!`
+        `Bài làm bị từ chối vì lý do an toàn hệ thống: Phát hiện ${rule.reason}. Vui lòng chỉ sử dụng các thư viện thuật toán tiêu chuẩn!`,
       );
     }
   }
@@ -48,15 +84,17 @@ export class SubmissionsService {
     private readonly prisma: PrismaService,
     @InjectQueue('judging') private readonly judgingQueue: Queue,
     private readonly aiService: AiService,
-  ) { }
+  ) {}
 
   async create(file: Express.Multer.File, assignmentId: string, req: any) {
     // 1. Detect file extension and map to programming language
     const filename = file.originalname;
     const parts = filename.split('.');
-    const userId = req.user.id as any;
+    const userId = req.user.id;
     if (parts.length < 2) {
-      throw new BadRequestException('Tên file không hợp lệ (thiếu phần mở rộng).');
+      throw new BadRequestException(
+        'Tên file không hợp lệ (thiếu phần mở rộng).',
+      );
     }
     const ext = parts.pop()?.toLowerCase();
 
@@ -103,7 +141,9 @@ export class SubmissionsService {
       where: { id: userId },
     });
     if (!user) {
-      throw new NotFoundException(`Sinh viên với ID "${userId}" không tồn tại.`);
+      throw new NotFoundException(
+        `Sinh viên với ID "${userId}" không tồn tại.`,
+      );
     }
 
     // 4. Verify if assignment exists
@@ -111,7 +151,9 @@ export class SubmissionsService {
       where: { id: assignmentId },
     });
     if (!assignment) {
-      throw new NotFoundException(`Bài tập (Assignment) với ID "${assignmentId}" không tồn tại.`);
+      throw new NotFoundException(
+        `Bài tập (Assignment) với ID "${assignmentId}" không tồn tại.`,
+      );
     }
 
     // 5. Cancel any previous submissions that are currently in PENDING or RUNNING status
@@ -144,13 +186,14 @@ export class SubmissionsService {
       {
         attempts: 3,
         backoff: 5000,
-      }
+      },
     );
     return submission;
   }
 
   async findAll(query: QuerySubmissionsDto) {
-    const { userId, assignmentId, classroomId, search, status, language } = query;
+    const { userId, assignmentId, classroomId, search, status, language } =
+      query;
     const page = Number(query.page) > 0 ? Number(query.page) : 1;
     const limit = Number(query.limit) > 0 ? Number(query.limit) : 10;
     const skip = (page - 1) * limit;
@@ -273,7 +316,8 @@ export class SubmissionsService {
         }),
       ]);
 
-      const rate = userTotal > 0 ? Math.round((userAccepted / userTotal) * 100) : 0;
+      const rate =
+        userTotal > 0 ? Math.round((userAccepted / userTotal) * 100) : 0;
       const avgScore = (avgScoreAggregate._avg.totalScore || 0).toFixed(1);
 
       stats = {
@@ -383,7 +427,10 @@ export class SubmissionsService {
     }
 
     // Chỉ hủy khi bài nộp đang chờ hoặc đang chấm
-    if (submission.status !== JudgeStatus.PENDING && submission.status !== JudgeStatus.RUNNING) {
+    if (
+      submission.status !== JudgeStatus.PENDING &&
+      submission.status !== JudgeStatus.RUNNING
+    ) {
       return {
         message: 'Bài nộp đã hoàn tất hoặc đã được hủy trước đó.',
         status: submission.status,
@@ -398,7 +445,11 @@ export class SubmissionsService {
 
     // Thử xóa job trong queue nếu chưa chạy xong
     try {
-      const jobs = await this.judgingQueue.getJobs(['waiting', 'delayed', 'active']);
+      const jobs = await this.judgingQueue.getJobs([
+        'waiting',
+        'delayed',
+        'active',
+      ]);
       const targetJob = jobs.find((j) => j.data?.submissionId === id);
       if (targetJob) {
         await targetJob.remove();
@@ -416,7 +467,11 @@ export class SubmissionsService {
   /**
    * 🤖 Lấy hoặc sinh nhận xét AI Review cho bài nộp (Có Caching qua DB cột aiFeedback)
    */
-  async getOrGenerateAiReview(id: string, currentUser: any, forceRefresh = false) {
+  async getOrGenerateAiReview(
+    id: string,
+    currentUser: any,
+    forceRefresh = false,
+  ) {
     const submission = await this.prisma.submission.findUnique({
       where: { id },
       include: {
@@ -443,7 +498,9 @@ export class SubmissionsService {
       currentUser?.role === 'ADMIN' || currentUser?.role === 'LECTURER';
 
     if (currentUser && !isOwner && !isAdminOrLecturer) {
-      throw new ForbiddenException('Bạn không có quyền xem phân tích bài nộp này!');
+      throw new ForbiddenException(
+        'Bạn không có quyền xem phân tích bài nộp này!',
+      );
     }
 
     // 1. Nếu đã có aiFeedback trong DB và không yêu cầu forceRefresh -> Trả về cache ngay lập tức!
@@ -454,7 +511,7 @@ export class SubmissionsService {
           cached: true,
           review: parsed,
         };
-      } catch (e) {
+      } catch {
         // Nếu trước đó lưu dạng plain text thì trả về dạng object đơn giản
         return {
           cached: true,
@@ -472,13 +529,17 @@ export class SubmissionsService {
 
     // 2. Nếu chưa có (hoặc forceRefresh) -> Gọi Gemini AI phân tích bài làm
     const problem = submission.assignment.problem;
-    const failedDetails = submission.details.filter((d) => d.status !== JudgeStatus.ACCEPTED);
+    const failedDetails = submission.details.filter(
+      (d) => d.status !== JudgeStatus.ACCEPTED,
+    );
     const failedSummary = failedDetails
       .slice(0, 3)
       .map(
         (d, idx) =>
           `Test #${idx + 1}: ${d.status}${d.errorMessage ? ` - Lỗi: ${d.errorMessage}` : ''}${
-            d.actualOutput ? ` - Code in ra: ${d.actualOutput.substring(0, 100)}` : ''
+            d.actualOutput
+              ? ` - Code in ra: ${d.actualOutput.substring(0, 100)}`
+              : ''
           }`,
       )
       .join('\n');
@@ -539,7 +600,11 @@ Hãy trả về kết quả theo cấu trúc JSON sau:
 
     let reviewData: any;
     try {
-      reviewData = await this.aiService.generateJson(prompt, schema, 'gemini-2.5-flash');
+      reviewData = await this.aiService.generateJson(
+        prompt,
+        schema,
+        'gemini-2.5-flash',
+      );
     } catch (e) {
       console.error('Lỗi khi gọi AI Review:', e);
       reviewData = {
@@ -568,4 +633,3 @@ Hãy trả về kết quả theo cấu trúc JSON sau:
     };
   }
 }
-
