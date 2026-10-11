@@ -1,32 +1,28 @@
 import { Body, Controller, Patch, Post, Req, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import * as Express from 'express'
+import * as Express from 'express';
 import { UpdatePasswordDto } from './dto/updatePass.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
-  @Post("login")
+  @Post('login')
   login(
     @Body() loginDto: LoginDto,
-    @Res({ passthrough: true }) response: Express.Response
-
+    @Res({ passthrough: true }) response: Express.Response,
   ) {
     return this.authService.login(loginDto, response);
   }
 
   @Post('refreshToken')
-
   refreshToken(
-
     @Req() request: Express.Request,
 
-    @Res({ passthrough: true }) response: Express.Response
-
+    @Res({ passthrough: true }) response: Express.Response,
   ) {
-    return this.authService.refreshTokens(request, response)
+    return this.authService.refreshTokens(request, response);
   }
 
   @Post('logout')
@@ -44,5 +40,4 @@ export class AuthController {
   updatePassword(@Body() updatePasswordDto: UpdatePasswordDto) {
     return this.authService.updatePassword(updatePasswordDto);
   }
-
 }

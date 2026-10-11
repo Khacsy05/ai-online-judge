@@ -6,7 +6,7 @@ import { Role, JudgeStatus } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getStats() {
     const [
@@ -21,13 +21,16 @@ export class AdminService {
       this.prisma.problem.count(),
       this.prisma.user.count({ where: { role: Role.STUDENT } }),
       this.prisma.user.count({ where: { role: Role.ADMIN } }),
-      this.prisma.submission.count({ where: { status: { not: JudgeStatus.CANCELLED } } }),
+      this.prisma.submission.count({
+        where: { status: { not: JudgeStatus.CANCELLED } },
+      }),
       this.prisma.submission.count({ where: { status: JudgeStatus.ACCEPTED } }),
     ]);
 
-    const acceptanceRate = totalSubmissions > 0
-      ? Math.round((acceptedSubmissions / totalSubmissions) * 100)
-      : 0;
+    const acceptanceRate =
+      totalSubmissions > 0
+        ? Math.round((acceptedSubmissions / totalSubmissions) * 100)
+        : 0;
 
     return {
       totalClassrooms,
@@ -40,7 +43,7 @@ export class AdminService {
     };
   }
 
-  create(createAdminDto: CreateAdminDto) {
+  create(_createAdminDto: CreateAdminDto) {
     return 'This action adds a new admin';
   }
 
@@ -52,7 +55,7 @@ export class AdminService {
     return `This action returns a #${id} admin`;
   }
 
-  update(id: number, updateAdminDto: UpdateAdminDto) {
+  update(id: number, _updateAdminDto: UpdateAdminDto) {
     return `This action updates a #${id} admin`;
   }
 
@@ -60,4 +63,3 @@ export class AdminService {
     return `This action removes a #${id} admin`;
   }
 }
-

@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { ClassroomsService } from './classrooms.service';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
@@ -8,7 +19,7 @@ import { QueryClassroomsDto } from './dto/query-classrooms.dto';
 
 @Controller('classrooms')
 export class ClassroomsController {
-  constructor(private readonly classroomsService: ClassroomsService) { }
+  constructor(private readonly classroomsService: ClassroomsService) {}
 
   @Post()
   create(@Body() createClassroomDto: CreateClassroomDto) {
@@ -26,7 +37,10 @@ export class ClassroomsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateClassroomDto: UpdateClassroomDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateClassroomDto: UpdateClassroomDto,
+  ) {
     return this.classroomsService.update(id, updateClassroomDto);
   }
 
@@ -91,6 +105,9 @@ export class ClassroomsController {
     @Param('id') classroomId: string,
     @Param('assignmentId') assignmentId: string,
   ) {
-    return this.classroomsService.checkAssignmentPlagiarism(classroomId, assignmentId);
+    return this.classroomsService.checkAssignmentPlagiarism(
+      classroomId,
+      assignmentId,
+    );
   }
 }

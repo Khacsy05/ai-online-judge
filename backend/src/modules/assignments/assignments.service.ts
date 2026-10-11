@@ -1,21 +1,28 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createAssignmentDto: CreateAssignmentDto) {
-    const { classroomId, problemId, startTime, deadline, isPublished } = createAssignmentDto;
+    const { classroomId, problemId, startTime, deadline, isPublished } =
+      createAssignmentDto;
 
     // Check if classroom exists
     const classroom = await this.prisma.classroom.findUnique({
       where: { id: classroomId },
     });
     if (!classroom) {
-      throw new NotFoundException(`Classroom with ID "${classroomId}" not found`);
+      throw new NotFoundException(
+        `Classroom with ID "${classroomId}" not found`,
+      );
     }
 
     // Check if problem exists
@@ -36,7 +43,9 @@ export class AssignmentsService {
       },
     });
     if (existingAssignment) {
-      throw new BadRequestException('Lớp học này đã được giao bài tập này rồi.');
+      throw new BadRequestException(
+        'Lớp học này đã được giao bài tập này rồi.',
+      );
     }
 
     return this.prisma.assignment.create({
@@ -123,17 +132,26 @@ export class AssignmentsService {
   async update(id: string, updateAssignmentDto: UpdateAssignmentDto) {
     const assignment = await this.findOne(id);
 
-    const { startTime, deadline, classroomId, problemId, isPublished } = updateAssignmentDto;
+    const { startTime, deadline, classroomId, problemId, isPublished } =
+      updateAssignmentDto;
 
     // Check relations if they are being updated
     if (classroomId) {
-      const classroom = await this.prisma.classroom.findUnique({ where: { id: classroomId } });
-      if (!classroom) throw new NotFoundException(`Classroom with ID "${classroomId}" not found`);
+      const classroom = await this.prisma.classroom.findUnique({
+        where: { id: classroomId },
+      });
+      if (!classroom)
+        throw new NotFoundException(
+          `Classroom with ID "${classroomId}" not found`,
+        );
     }
 
     if (problemId) {
-      const problem = await this.prisma.problem.findUnique({ where: { id: problemId } });
-      if (!problem) throw new NotFoundException(`Problem with ID "${problemId}" not found`);
+      const problem = await this.prisma.problem.findUnique({
+        where: { id: problemId },
+      });
+      if (!problem)
+        throw new NotFoundException(`Problem with ID "${problemId}" not found`);
     }
 
     // Determine the target classroom and problem for the update
@@ -141,7 +159,10 @@ export class AssignmentsService {
     const targetProblemId = problemId ?? assignment.problemId;
 
     // Check if the target classroom already has this problem assigned
-    if (targetClassroomId !== assignment.classroomId || targetProblemId !== assignment.problemId) {
+    if (
+      targetClassroomId !== assignment.classroomId ||
+      targetProblemId !== assignment.problemId
+    ) {
       const existingAssignment = await this.prisma.assignment.findUnique({
         where: {
           classroomId_problemId: {
@@ -152,13 +173,17 @@ export class AssignmentsService {
       });
 
       if (existingAssignment) {
-        throw new BadRequestException('Lớp học này đã được giao bài tập này rồi.');
+        throw new BadRequestException(
+          'Lớp học này đã được giao bài tập này rồi.',
+        );
       }
     }
 
     if (assignment._count.submissions > 0) {
       if (classroomId || problemId) {
-        throw new BadRequestException(`Assignment with ID "${id}" has submissions`);
+        throw new BadRequestException(
+          `Assignment with ID "${id}" has submissions`,
+        );
       }
     }
 

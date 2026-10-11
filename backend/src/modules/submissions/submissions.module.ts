@@ -17,7 +17,12 @@ import { Judge0Service } from './judge0.service';
     }),
   ],
   controllers: [SubmissionsController],
-  providers: [SubmissionsService, SubmissionsProcessor, SubmissionsGateway, Judge0Service],
+  providers: [
+    SubmissionsService,
+    SubmissionsProcessor,
+    SubmissionsGateway,
+    Judge0Service,
+  ],
   exports: [SubmissionsService, SubmissionsGateway, Judge0Service],
 })
-export class SubmissionsModule { }
+export class SubmissionsModule {}

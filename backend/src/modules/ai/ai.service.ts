@@ -8,7 +8,9 @@ export class AiService {
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.warn('⚠️ GEMINI_API_KEY chưa được khai báo trong biến môi trường (.env).');
+      console.warn(
+        '⚠️ GEMINI_API_KEY chưa được khai báo trong biến môi trường (.env).',
+      );
     }
     // Khởi tạo Google Gen AI client sử dụng API Key
     this.ai = new GoogleGenAI({ apiKey });
@@ -19,7 +21,10 @@ export class AiService {
    * @param prompt Nội dung gửi tới AI
    * @param modelName Tên model sử dụng (mặc định là gemini-2.5-flash)
    */
-  async generateText(prompt: string, modelName = 'gemini-2.5-flash'): Promise<string> {
+  async generateText(
+    prompt: string,
+    modelName = 'gemini-2.5-flash',
+  ): Promise<string> {
     const startTime = Date.now();
     try {
       const response = await this.ai.models.generateContent({
@@ -30,11 +35,16 @@ export class AiService {
         },
       });
       const durationMs = Date.now() - startTime;
-      console.log(`⏱️ [Gemini AI] generateText hoàn thành trong: ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`);
+      console.log(
+        `⏱️ [Gemini AI] generateText hoàn thành trong: ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`,
+      );
       return response.text ?? '';
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      console.error(`❌ [Gemini AI] Lỗi gọi Gemini API (Text) sau ${durationMs}ms:`, error);
+      console.error(
+        `❌ [Gemini AI] Lỗi gọi Gemini API (Text) sau ${durationMs}ms:`,
+        error,
+      );
       throw error;
     }
   }
@@ -45,7 +55,11 @@ export class AiService {
    * @param schema Cấu trúc JSON mong muốn nhận về
    * @param modelName Tên model sử dụng (mặc định là gemini-2.5-flash)
    */
-  async generateJson<T>(prompt: string, schema: any, modelName = 'gemini-2.5-flash'): Promise<T> {
+  async generateJson<T>(
+    prompt: string,
+    schema: any,
+    modelName = 'gemini-2.5-flash',
+  ): Promise<T> {
     const startTime = Date.now();
     try {
       const response = await this.ai.models.generateContent({
@@ -58,11 +72,16 @@ export class AiService {
         },
       });
       const durationMs = Date.now() - startTime;
-      console.log(`⏱️ [Gemini AI] Chấm bài (generateJson) hoàn thành trong: ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`);
+      console.log(
+        `⏱️ [Gemini AI] Chấm bài (generateJson) hoàn thành trong: ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`,
+      );
       return JSON.parse(response.text ?? '{}') as T;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      console.error(`❌ [Gemini AI] Lỗi gọi Gemini API (JSON) sau ${durationMs}ms:`, error);
+      console.error(
+        `❌ [Gemini AI] Lỗi gọi Gemini API (JSON) sau ${durationMs}ms:`,
+        error,
+      );
       throw error;
     }
   }

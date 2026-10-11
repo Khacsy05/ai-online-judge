@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { CreateClassroomDto } from './dto/create-classroom.dto';
 import { UpdateClassroomDto } from './dto/update-classroom.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
@@ -11,12 +17,14 @@ import { spawn } from 'child_process';
 
 @Injectable()
 export class ClassroomsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createClassroomDto: CreateClassroomDto) {
     const { code, name } = createClassroomDto;
     if (!code || !name) {
-      throw new BadRequestException('Vui lòng cung cấp đầy đủ mã lớp và tên môn học.');
+      throw new BadRequestException(
+        'Vui lòng cung cấp đầy đủ mã lớp và tên môn học.',
+      );
     }
 
     const normalizedCode = code.trim().toUpperCase();
@@ -25,7 +33,9 @@ export class ClassroomsService {
     });
 
     if (existing) {
-      throw new BadRequestException(`Mã lớp "${normalizedCode}" đã tồn tại trên hệ thống.`);
+      throw new BadRequestException(
+        `Mã lớp "${normalizedCode}" đã tồn tại trên hệ thống.`,
+      );
     }
 
     return this.prisma.classroom.create({
@@ -119,7 +129,9 @@ export class ClassroomsService {
           where: { code: normalizedCode },
         });
         if (existing) {
-          throw new BadRequestException(`Mã lớp "${normalizedCode}" đã tồn tại trên hệ thống.`);
+          throw new BadRequestException(
+            `Mã lớp "${normalizedCode}" đã tồn tại trên hệ thống.`,
+          );
         }
       }
       dataToUpdate.code = normalizedCode;
@@ -150,7 +162,7 @@ export class ClassroomsService {
     // ❌ Chặn không cho xóa nếu lớp đã có sinh viên
     if ((classroom._count?.members || 0) > 0) {
       throw new BadRequestException(
-        `Không thể xóa lớp học "${classroom.name}" vì lớp đang có ${classroom._count.members} sinh viên tham gia. Vui lòng chuyển hoặc xóa sinh viên trước!`
+        `Không thể xóa lớp học "${classroom.name}" vì lớp đang có ${classroom._count.members} sinh viên tham gia. Vui lòng chuyển hoặc xóa sinh viên trước!`,
       );
     }
 
@@ -167,7 +179,9 @@ export class ClassroomsService {
       where: { id: classroomId },
     });
     if (!classroom) {
-      throw new NotFoundException(`Không tìm thấy lớp học với ID: "${classroomId}"`);
+      throw new NotFoundException(
+        `Không tìm thấy lớp học với ID: "${classroomId}"`,
+      );
     }
 
     // 1. Tập hợp danh sách User ID cần thêm
@@ -181,7 +195,11 @@ export class ClassroomsService {
     }
 
     // 2. Nếu truyền studentCodes, tìm User ID tương ứng
-    if (dto.studentCodes && Array.isArray(dto.studentCodes) && dto.studentCodes.length > 0) {
+    if (
+      dto.studentCodes &&
+      Array.isArray(dto.studentCodes) &&
+      dto.studentCodes.length > 0
+    ) {
       const usersByCode = await this.prisma.user.findMany({
         where: {
           studentCode: { in: dto.studentCodes },
@@ -193,7 +211,9 @@ export class ClassroomsService {
     }
 
     if (userIdsToAdd.size === 0) {
-      throw new BadRequestException('Vui lòng cung cấp ít nhất một mã sinh viên (studentCode) hoặc ID sinh viên (studentId).');
+      throw new BadRequestException(
+        'Vui lòng cung cấp ít nhất một mã sinh viên (studentCode) hoặc ID sinh viên (studentId).',
+      );
     }
 
     // 3. Lấy danh sách thành viên ĐÃ CÓ LỚP trong toàn hệ thống (ở lớp này hoặc lớp khác)
@@ -212,18 +232,25 @@ export class ClassroomsService {
     });
 
     // Nếu có sinh viên đã thuộc lớp khác, thông báo cụ thể
-    const inOtherClass = existingMembers.filter((m) => m.classroomId !== classroomId);
+    const inOtherClass = existingMembers.filter(
+      (m) => m.classroomId !== classroomId,
+    );
     if (inOtherClass.length > 0) {
       const names = inOtherClass
-        .map((m) => `${m.user.fullName} (${m.user.studentCode || 'MSSV'}) đang ở lớp "${m.classroom.name}"`)
+        .map(
+          (m) =>
+            `${m.user.fullName} (${m.user.studentCode || 'MSSV'}) đang ở lớp "${m.classroom.name}"`,
+        )
         .join(', ');
       throw new BadRequestException(
-        `Không thể thêm! Các sinh viên sau đã có lớp học khác: ${names}. Mỗi sinh viên chỉ được tham gia 1 lớp học!`
+        `Không thể thêm! Các sinh viên sau đã có lớp học khác: ${names}. Mỗi sinh viên chỉ được tham gia 1 lớp học!`,
       );
     }
 
     const inThisClassUserIds = new Set(
-      existingMembers.filter((m) => m.classroomId === classroomId).map((m) => m.userId)
+      existingMembers
+        .filter((m) => m.classroomId === classroomId)
+        .map((m) => m.userId),
     );
 
     // Lọc ra các sinh viên thực sự chưa có trong lớp này
@@ -268,7 +295,9 @@ export class ClassroomsService {
     });
 
     if (!member) {
-      throw new NotFoundException('Sinh viên này không thuộc lớp học được chỉ định.');
+      throw new NotFoundException(
+        'Sinh viên này không thuộc lớp học được chỉ định.',
+      );
     }
 
     await this.prisma.classroomMember.delete({
@@ -290,7 +319,9 @@ export class ClassroomsService {
    */
   async removeStudentsFromClass(classroomId: string, userIds: string[]) {
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      throw new BadRequestException('Vui lòng cung cấp danh sách sinh viên cần xóa.');
+      throw new BadRequestException(
+        'Vui lòng cung cấp danh sách sinh viên cần xóa.',
+      );
     }
 
     const res = await this.prisma.classroomMember.deleteMany({
@@ -340,32 +371,34 @@ export class ClassroomsService {
         studentCode: true,
         email: true,
       },
-      orderBy: [
-        { studentCode: 'asc' },
-        { fullName: 'asc' },
-      ],
+      orderBy: [{ studentCode: 'asc' }, { fullName: 'asc' }],
       take: 100, // Lấy tối đa 100 SV mỗi lần để tối ưu tốc độ
     });
   }
 
-  async getClassroomLeaderboard(classroomId: string, query: QueryClassroomsDto) {
-    const { page, limit } = query
-    const pageNumber = Math.max(1, Number(page) || 1)
-    const limitNumber = Math.max(1, Number(limit) || 6)
-    const skip = (pageNumber - 1) * limitNumber
+  async getClassroomLeaderboard(
+    classroomId: string,
+    query: QueryClassroomsDto,
+  ) {
+    const { page, limit } = query;
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.max(1, Number(limit) || 6);
+    const skip = (pageNumber - 1) * limitNumber;
     // Check if classroom exists
     const classroom = await this.prisma.classroom.findUnique({
       where: { id: classroomId },
     });
     if (!classroom) {
-      throw new NotFoundException(`Classroom with ID "${classroomId}" not found`);
+      throw new NotFoundException(
+        `Classroom with ID "${classroomId}" not found`,
+      );
     }
 
     // 1. Get all students in the classroom
     const members = await this.prisma.classroomMember.findMany({
       where: {
         classroomId: classroomId,
-        user: { role: Role.STUDENT }
+        user: { role: Role.STUDENT },
       },
       include: {
         user: {
@@ -373,10 +406,10 @@ export class ClassroomsService {
             id: true,
             fullName: true,
             studentCode: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
     // 2. Get all assignments in the classroom
@@ -386,26 +419,26 @@ export class ClassroomsService {
         id: true,
         problem: {
           select: {
-            title: true
-          }
-        }
-      }
+            title: true,
+          },
+        },
+      },
     });
 
-    const assignmentIds = assignments.map(a => a.id);
+    const assignmentIds = assignments.map((a) => a.id);
 
     // 3. Get all submissions for these assignments by the classroom's students
     const submissions = await this.prisma.submission.findMany({
       where: {
         assignmentId: { in: assignmentIds },
-        status: { not: JudgeStatus.CANCELLED }
+        status: { not: JudgeStatus.CANCELLED },
       },
       select: {
         userId: true,
         assignmentId: true,
         totalScore: true,
-        status: true
-      }
+        status: true,
+      },
     });
 
     // Aggregations
@@ -424,25 +457,28 @@ export class ClassroomsService {
 
     const maxClassScore = assignments.length * 10;
 
-    const leaderboard = members.map(member => {
+    const leaderboard = members.map((member) => {
       const student = member.user;
       const scores = studentScoresMap[student.id] || {};
 
       let totalScore = 0;
-      assignments.forEach(assign => {
+      assignments.forEach((assign) => {
         totalScore += scores[assign.id] || 0;
       });
 
       // Count unique solved assignments (status: ACCEPTED)
-      const studentSubs = submissions.filter(s => s.userId === student.id);
+      const studentSubs = submissions.filter((s) => s.userId === student.id);
       const uniqueSolvedAssignments = new Set(
-        studentSubs.filter(s => s.status === JudgeStatus.ACCEPTED).map(s => s.assignmentId)
+        studentSubs
+          .filter((s) => s.status === JudgeStatus.ACCEPTED)
+          .map((s) => s.assignmentId),
       );
 
       const roundedScore = Math.round(totalScore * 100) / 100;
-      const progressPercentage = maxClassScore > 0
-        ? Math.round((roundedScore / maxClassScore) * 10000) / 100
-        : 0;
+      const progressPercentage =
+        maxClassScore > 0
+          ? Math.round((roundedScore / maxClassScore) * 10000) / 100
+          : 0;
 
       return {
         userId: student.id,
@@ -483,17 +519,23 @@ export class ClassroomsService {
       );
     }
 
-    const topStudent = rankedLeaderboard.length > 0 ? {
-      userId: rankedLeaderboard[0].userId,
-      fullName: rankedLeaderboard[0].fullName,
-      studentCode: rankedLeaderboard[0].studentCode,
-      email: rankedLeaderboard[0].email,
-      totalScore: rankedLeaderboard[0].totalScore,
-    } : null;
+    const topStudent =
+      rankedLeaderboard.length > 0
+        ? {
+            userId: rankedLeaderboard[0].userId,
+            fullName: rankedLeaderboard[0].fullName,
+            studentCode: rankedLeaderboard[0].studentCode,
+            email: rankedLeaderboard[0].email,
+            totalScore: rankedLeaderboard[0].totalScore,
+          }
+        : null;
 
     const total = filteredLeaderboard.length;
     const totalPages = Math.ceil(total / limitNumber) || 1;
-    const paginatedLeaderboard = filteredLeaderboard.slice(skip, skip + limitNumber);
+    const paginatedLeaderboard = filteredLeaderboard.slice(
+      skip,
+      skip + limitNumber,
+    );
 
     return {
       classroomId,
@@ -544,7 +586,9 @@ export class ClassroomsService {
     });
 
     if (!classroom) {
-      throw new NotFoundException(`Classroom with ID "${classroomId}" not found`);
+      throw new NotFoundException(
+        `Classroom with ID "${classroomId}" not found`,
+      );
     }
 
     // Kiểm tra xem sinh viên có phải là thành viên trong lớp này không
@@ -558,13 +602,15 @@ export class ClassroomsService {
     });
 
     if (!isMember) {
-      throw new ForbiddenException('Bạn không phải là sinh viên của lớp học này.');
+      throw new ForbiddenException(
+        'Bạn không phải là sinh viên của lớp học này.',
+      );
     }
 
     const assignments = classroom.assignments;
     const totalAssignments = assignments.length;
     const maxClassScore = totalAssignments * 10;
-    const assignmentIds = assignments.map(a => a.id);
+    const assignmentIds = assignments.map((a) => a.id);
 
     // Lấy tất cả bài nộp của sinh viên này trong lớp
     const submissions = await this.prisma.submission.findMany({
@@ -584,8 +630,8 @@ export class ClassroomsService {
     });
 
     // Tính điểm và trạng thái chi tiết của từng bài tập
-    const assignmentProgress = assignments.map(assign => {
-      const subs = submissions.filter(s => s.assignmentId === assign.id);
+    const assignmentProgress = assignments.map((assign) => {
+      const subs = submissions.filter((s) => s.assignmentId === assign.id);
       const attemptCount = subs.length;
       let bestScore = 0;
       let latestScore = 0;
@@ -595,8 +641,10 @@ export class ClassroomsService {
       if (subs.length > 0) {
         latestStatus = subs[0].status;
         latestScore = subs[0].totalScore;
-        bestScore = Math.max(...subs.map(s => s.totalScore));
-        isSolved = subs.some(s => s.status === JudgeStatus.ACCEPTED) || bestScore >= 10.0;
+        bestScore = Math.max(...subs.map((s) => s.totalScore));
+        isSolved =
+          subs.some((s) => s.status === JudgeStatus.ACCEPTED) ||
+          bestScore >= 10.0;
       }
 
       return {
@@ -622,7 +670,7 @@ export class ClassroomsService {
     let studentTotalScore = 0;
     let solvedCount = 0;
 
-    assignmentProgress.forEach(item => {
+    assignmentProgress.forEach((item) => {
       studentTotalScore += item.bestScore;
       if (item.isSolved) {
         solvedCount++;
@@ -630,9 +678,10 @@ export class ClassroomsService {
     });
 
     const roundedTotalScore = Math.round(studentTotalScore * 100) / 100;
-    const progressPercentage = maxClassScore > 0
-      ? Math.round((roundedTotalScore / maxClassScore) * 10000) / 100
-      : 0;
+    const progressPercentage =
+      maxClassScore > 0
+        ? Math.round((roundedTotalScore / maxClassScore) * 10000) / 100
+        : 0;
 
     return {
       classroomId,
@@ -687,11 +736,12 @@ export class ClassroomsService {
     });
 
     if (!classroom) {
-      throw new NotFoundException(`Lớp học với ID "${classroomId}" không tồn tại.`);
+      throw new NotFoundException(
+        `Lớp học với ID "${classroomId}" không tồn tại.`,
+      );
     }
 
     const assignmentIds = classroom.assignments.map((a) => a.id);
-    const memberUserIds = classroom.members.map((m) => m.userId);
 
     // Lấy tất cả bài nộp của lớp học này
     const submissions = await this.prisma.submission.findMany({
@@ -713,7 +763,9 @@ export class ClassroomsService {
 
     // 1. Thống kê theo từng bài tập (Assignment Stats)
     const assignmentStats = classroom.assignments.map((assign) => {
-      const assignSubs = submissions.filter((s) => s.assignmentId === assign.id);
+      const assignSubs = submissions.filter(
+        (s) => s.assignmentId === assign.id,
+      );
       const totalSubmissions = assignSubs.length;
 
       // Sinh viên đã từng nộp bài này
@@ -768,7 +820,8 @@ export class ClassroomsService {
       // Tỷ lệ Pass dựa trên số sinh viên đã làm
       const passRate =
         attemptedStudentsCount > 0
-          ? Math.round((passedStudentsCount / attemptedStudentsCount) * 1000) / 10
+          ? Math.round((passedStudentsCount / attemptedStudentsCount) * 1000) /
+            10
           : 0;
 
       const failRate =
@@ -798,23 +851,33 @@ export class ClassroomsService {
       .sort((a, b) => b.failRate - a.failRate);
 
     // 2. Bảng điểm toàn bộ sinh viên kèm điểm từng bài (Gradebook)
-    const studentGradebook = classroom.members.map((m, index) => {
+    const studentGradebook = classroom.members.map((m) => {
       const student = m.user;
       const userSubs = submissions.filter((s) => s.userId === student.id);
 
-      const assignmentScores: Record<string, { score: number; status: string; attempts: number }> =
-        {};
+      const assignmentScores: Record<
+        string,
+        { score: number; status: string; attempts: number }
+      > = {};
 
       let totalStudentScore = 0;
       let solvedCount = 0;
 
       classroom.assignments.forEach((assign) => {
-        const subsForAssign = userSubs.filter((s) => s.assignmentId === assign.id);
+        const subsForAssign = userSubs.filter(
+          (s) => s.assignmentId === assign.id,
+        );
         if (subsForAssign.length === 0) {
-          assignmentScores[assign.id] = { score: 0, status: 'NOT_SUBMITTED', attempts: 0 };
+          assignmentScores[assign.id] = {
+            score: 0,
+            status: 'NOT_SUBMITTED',
+            attempts: 0,
+          };
         } else {
           const bestScore = Math.max(...subsForAssign.map((s) => s.totalScore));
-          const isAC = subsForAssign.some((s) => s.status === JudgeStatus.ACCEPTED);
+          const isAC = subsForAssign.some(
+            (s) => s.status === JudgeStatus.ACCEPTED,
+          );
           const latestStatus = subsForAssign[0].status;
 
           assignmentScores[assign.id] = {
@@ -911,7 +974,9 @@ export class ClassroomsService {
     });
 
     if (!assignment) {
-      throw new NotFoundException('Bài tập không thuộc lớp học này hoặc không tồn tại.');
+      throw new NotFoundException(
+        'Bài tập không thuộc lớp học này hoặc không tồn tại.',
+      );
     }
 
     // Lấy bài nộp có điểm cao nhất của từng sinh viên cho bài tập này (hoặc bài nộp mới nhất)
@@ -944,7 +1009,7 @@ export class ClassroomsService {
     }
 
     // Lấy mỗi sinh viên 1 bài nộp tốt nhất (hoặc bài mới nhất có code)
-    const userBestSubMap = new Map<string, typeof submissions[0]>();
+    const userBestSubMap = new Map<string, (typeof submissions)[0]>();
     for (const sub of submissions) {
       if (!userBestSubMap.has(sub.userId)) {
         userBestSubMap.set(sub.userId, sub);
@@ -981,7 +1046,14 @@ export class ClassroomsService {
       const possiblePaths = [
         path.join(process.cwd(), 'scripts', 'plagiarism_checker.py'),
         path.join(process.cwd(), 'backend', 'scripts', 'plagiarism_checker.py'),
-        path.join(__dirname, '..', '..', '..', 'scripts', 'plagiarism_checker.py'),
+        path.join(
+          __dirname,
+          '..',
+          '..',
+          '..',
+          'scripts',
+          'plagiarism_checker.py',
+        ),
       ];
       const scriptPath = possiblePaths.find((p) => fs.existsSync(p));
 
@@ -1013,7 +1085,9 @@ export class ClassroomsService {
 
       child.on('close', (code) => {
         if (code !== 0 && !stdout.trim()) {
-          Logger.error(`Lỗi thực thi Plagiarism Checker (code ${code}): ${stderr}`);
+          Logger.error(
+            `Lỗi thực thi Plagiarism Checker (code ${code}): ${stderr}`,
+          );
           return resolve({
             totalSubmissions: submissions.length,
             totalComparisons: 0,
@@ -1026,7 +1100,9 @@ export class ClassroomsService {
           const parsed = JSON.parse(stdout);
           resolve(parsed);
         } catch (err) {
-          Logger.error(`Lỗi parse JSON output từ Plagiarism Checker: ${err.message}`);
+          Logger.error(
+            `Lỗi parse JSON output từ Plagiarism Checker: ${err.message}`,
+          );
           resolve({
             totalSubmissions: submissions.length,
             totalComparisons: 0,
@@ -1039,7 +1115,9 @@ export class ClassroomsService {
       });
 
       child.on('error', (err) => {
-        Logger.error(`Không thể spawn tiến trình Python cho Plagiarism Checker: ${err.message}`);
+        Logger.error(
+          `Không thể spawn tiến trình Python cho Plagiarism Checker: ${err.message}`,
+        );
         resolve({
           totalSubmissions: submissions.length,
           totalComparisons: 0,

@@ -23,23 +23,27 @@ import { APP_GUARD } from '@nestjs/core';
     AuthModule,
     BullModule.forRoot({
       connection: {
-        host: 'localhost',
-        port: 6379,
+        host: process.env.REDIS_HOST || 'localhost',
+        port: Number(process.env.REDIS_PORT) || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
       },
     }),
     ClassroomsModule,
     AdminModule,
     ProblemsModule,
     UsersModule,
-    ThrottlerModule.forRoot([{
-      name: 'short',
-      ttl: 1000,    // 1 giây
-      limit: 3,     // tối đa 3 requests / 1s (chống spam click)
-    }, {
-      name: 'medium',
-      ttl: 60000,   // 1 phút
-      limit: 100,   // tối đa 100 requests / 1 phút
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000, // 1 giây
+        limit: 10, // tối đa 10 requests / 1s từ cùng 1 IP (chuẩn bảo vệ)
+      },
+      {
+        name: 'medium',
+        ttl: 60000, // 1 phút
+        limit: 100, // tối đa 100 requests / 1 phút
+      },
+    ]),
   ],
   controllers: [AppController],
   providers: [
@@ -51,4 +55,4 @@ import { APP_GUARD } from '@nestjs/core';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

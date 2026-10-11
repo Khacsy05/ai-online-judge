@@ -20,19 +20,21 @@ import { QuerySubmissionsDto } from './dto/query-submissions-dto';
 
 @Controller('submissions')
 export class SubmissionsController {
-  constructor(private readonly submissionsService: SubmissionsService) { }
+  constructor(private readonly submissionsService: SubmissionsService) {}
 
   @Post()
   @UseInterceptors(FileInterceptor('file'))
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("STUDENT")
+  @Roles('STUDENT')
   async create(
     @UploadedFile() file: Express.Multer.File,
     @Body('assignmentId') assignmentId: string,
-    @Req() req: any
+    @Req() req: any,
   ) {
     if (!file) {
-      throw new BadRequestException('Vui lòng tải lên file chứa mã nguồn (key: "file").');
+      throw new BadRequestException(
+        'Vui lòng tải lên file chứa mã nguồn (key: "file").',
+      );
     }
     if (!assignmentId) {
       throw new BadRequestException('Trường "assignmentId" là bắt buộc.');
@@ -66,7 +68,10 @@ export class SubmissionsController {
     @Body('refresh') refresh: boolean,
     @Req() req: any,
   ) {
-    return this.submissionsService.getOrGenerateAiReview(id, req.user, !!refresh);
+    return this.submissionsService.getOrGenerateAiReview(
+      id,
+      req.user,
+      !!refresh,
+    );
   }
 }
-
