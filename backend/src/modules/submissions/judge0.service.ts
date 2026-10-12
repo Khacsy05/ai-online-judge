@@ -113,7 +113,7 @@ export class Judge0Service {
         payload,
         {
           headers: { 'Content-Type': 'application/json' },
-          timeout: httpTimeoutMs,
+          timeout: Math.min(httpTimeoutMs, 6000), // Không để timeout quá lâu nếu server Judge0 offline
         },
       );
 
@@ -121,10 +121,11 @@ export class Judge0Service {
       // Nếu là Java và gặp lỗi sandbox cgroup (Internal Error / signal 11 / JVM space reservation error)
       if (isJava && this.isJavaSandboxError(res)) {
         this.logger.warn(
-          `⚠️ Judge0 sandbox gặp sự cố JVM cho Java. Đang chuyển sang Fallback Java cục bộ...`,
+          `⚠️ Judge0 sandbox gặp sự cố JVM cho Java. Đang chuyển sang Fallback...`,
         );
-        return this.executeJavaLocally(
+        return this.executeWithPistonFallback(
           codeToExecute,
+          languageId,
           input,
           expectedOutput,
           timeLimitMs,
@@ -133,18 +134,116 @@ export class Judge0Service {
 
       return res;
     } catch (err: any) {
-      if (isJava) {
-        this.logger.warn(
-          `⚠️ Kết nối Judge0 cho Java lỗi (${err.message}). Đang chuyển sang Fallback Java cục bộ...`,
-        );
-        return this.executeJavaLocally(
-          codeToExecute,
-          input,
-          expectedOutput,
-          timeLimitMs,
-        );
+      this.logger.warn(
+        `⚠️ Kết nối Judge0 không khả dụng (${err.message}). Tự động kích hoạt Fallback Piston Cloud 24/7...`,
+      );
+      return this.executeWithPistonFallback(
+        codeToExecute,
+        languageId,
+        input,
+        expectedOutput,
+        timeLimitMs,
+      );
+    }
+  }
+
+  /**
+   * Fallback sang Piston Public Cloud API (Hoàn toàn miễn phí, 24/7, không cần Docker trên máy)
+   */
+  private async executeWithPistonFallback(
+    sourceCode: string,
+    languageId: number,
+    input: string,
+    expectedOutput?: string,
+    timeLimitMs = 2000,
+  ): Promise<Judge0SubmissionResult> {
+    const languageMap: Record<number, { lang: string; version: string; file?: string }> = {
+      54: { lang: 'cpp', version: '10.2.0', file: 'main.cpp' },
+      50: { lang: 'c', version: '10.2.0', file: 'main.c' },
+      71: { lang: 'python', version: '3.10.0', file: 'main.py' },
+      62: { lang: 'java', version: '15.0.2', file: 'Main.java' },
+      63: { lang: 'javascript', version: '18.15.0', file: 'main.js' },
+      74: { lang: 'typescript', version: '5.0.3', file: 'main.ts' },
+      60: { lang: 'go', version: '1.16.2', file: 'main.go' },
+    };
+
+    const target = languageMap[languageId] || { lang: 'python', version: '3.10.0', file: 'main.py' };
+    const tStart = Date.now();
+
+    try {
+      const response = await axios.post(
+        'https://emkc.org/api/v2/piston/execute',
+        {
+          language: target.lang,
+          version: target.version,
+          files: [
+            {
+              name: target.file,
+              content: sourceCode,
+            },
+          ],
+          stdin: input,
+          run_timeout: Math.max(timeLimitMs, 2000),
+        },
+        { timeout: 10000 },
+      );
+
+      const elapsedSec = ((Date.now() - tStart) / 1000).toFixed(3);
+      const data = response.data;
+      const run = data.run || {};
+
+      const stdout = run.stdout ?? '';
+      const stderr = run.stderr ?? '';
+      const code = run.code;
+      const signal = run.signal;
+
+      let statusId = 3; // Accepted
+      let statusDesc = 'Accepted';
+
+      if (signal === 'SIGKILL' || run.output?.includes('Time limit exceeded')) {
+        statusId = 5; // Time Limit Exceeded
+        statusDesc = 'Time Limit Exceeded';
+      } else if (data.compile && data.compile.code !== 0) {
+        statusId = 6; // Compilation Error
+        statusDesc = 'Compilation Error';
+      } else if (code !== 0 || stderr.length > 0) {
+        statusId = 11; // Runtime Error
+        statusDesc = 'Runtime Error';
+      } else if (expectedOutput !== undefined) {
+        const cleanActual = stdout.trim().replace(/\r\n/g, '\n');
+        const cleanExpected = expectedOutput.trim().replace(/\r\n/g, '\n');
+        if (cleanActual !== cleanExpected) {
+          statusId = 4; // Wrong Answer
+          statusDesc = 'Wrong Answer';
+        }
       }
-      throw err;
+
+      return {
+        stdout: stdout || null,
+        stderr: stderr || (data.compile?.stderr ?? null),
+        compile_output: data.compile?.output ?? null,
+        message: null,
+        time: elapsedSec,
+        memory: 12400,
+        status: {
+          id: statusId,
+          description: statusDesc,
+        },
+      };
+    } catch (fallbackErr: any) {
+      this.logger.error(`❌ Cả Judge0 lẫn Piston Fallback đều lỗi: ${fallbackErr.message}`);
+      return {
+        stdout: null,
+        stderr: fallbackErr.message,
+        compile_output: null,
+        message: 'Lỗi thực thi mã nguồn trên hệ thống chấm trực tuyến',
+        time: '0.000',
+        memory: 0,
+        status: {
+          id: 11,
+          description: 'Runtime Error',
+        },
+      };
     }
   }
 
