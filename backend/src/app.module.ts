@@ -30,6 +30,16 @@ import { APP_GUARD } from '@nestjs/core';
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
         keepAlive: 10000,
+        retryStrategy(times) {
+          return Math.min(times * 100, 3000);
+        },
+        reconnectOnError(err) {
+          const targetError = 'READONLY';
+          if (err.message.includes(targetError)) {
+            return true;
+          }
+          return false;
+        },
       },
     }),
     ClassroomsModule,
