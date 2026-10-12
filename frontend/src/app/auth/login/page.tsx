@@ -40,11 +40,17 @@ function LoginForm() {
     try {
       const res = await loginUser({ email, password });
 
-      // Lưu token và thông tin user (kèm classroomId) vào Zustand
+      // 1. Lưu token vào Cookie để Next.js Middleware nhận diện ngay lập tức
+      if (typeof window !== "undefined") {
+        document.cookie = `access_token=${res.data.accessToken}; path=/; max-age=86400; SameSite=Lax`;
+      }
+
+      // 2. Lưu token và thông tin user (kèm classroomId) vào Zustand
       setAuth(res.data.accessToken, res.data.user);
       console.log(res);
+
       const targetUrl = getRedirectUrlByRole(res.data.user.role, callbackUrl);
-      router.push(targetUrl);
+      window.location.href = targetUrl;
     } catch (err: any) {
       setError(err.message || "Tài khoản hoặc mật khẩu không chính xác.");
       setLoading(false);
@@ -60,11 +66,17 @@ function LoginForm() {
     try {
       const res = await loginUser({ email: demoEmail, password: demoPassword });
 
-      // Lưu token và thông tin user (kèm classroomId) vào Zustand
+      // 1. Lưu token vào Cookie để Next.js Middleware nhận diện ngay lập tức
+      if (typeof window !== "undefined") {
+        document.cookie = `access_token=${res.data.accessToken}; path=/; max-age=86400; SameSite=Lax`;
+      }
+
+      // 2. Lưu token và thông tin user (kèm classroomId) vào Zustand
       setAuth(res.data.accessToken, res.data.user);
       console.log(res);
+
       const targetUrl = getRedirectUrlByRole(res.data.user.role, callbackUrl);
-      router.push(targetUrl);
+      window.location.href = targetUrl;
     } catch (err: any) {
       setError(err.message || "Đăng nhập mẫu thất bại.");
       setLoading(false);

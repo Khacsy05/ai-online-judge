@@ -35,7 +35,19 @@ async function bootstrap() {
   };
 
   app.enableCors({
-    origin: process.env.FRONTEND_URL,
+    origin: (requestOrigin, callback) => {
+      const allowedFrontend = process.env.FRONTEND_URL;
+      if (
+        !requestOrigin ||
+        requestOrigin === allowedFrontend ||
+        requestOrigin.includes('localhost') ||
+        requestOrigin.endsWith('.vercel.app')
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${requestOrigin} not allowed by CORS`));
+      }
+    },
     credentials: true, // ✅ Quan trọng: cho phép gửi cookie
   });
   const port = process.env.PORT ?? 3001;
