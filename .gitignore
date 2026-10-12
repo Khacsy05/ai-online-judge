@@ -21,3 +21,8 @@ dist/
 build/
 .next/
 out/
+
+# ngrok
+ngrok.exe
+ngrok.log
+
